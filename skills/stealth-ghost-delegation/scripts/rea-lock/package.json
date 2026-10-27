@@ -1,0 +1,9 @@
+{
+  "name": "stealth-rea-runtime",
+  "version": "0.0.0-private",
+  "private": true,
+  "overrides": { "zod": "4.6.6" },
+  "dependencies": {
+    "rea-agents": "6.7.0"
+  }
+}

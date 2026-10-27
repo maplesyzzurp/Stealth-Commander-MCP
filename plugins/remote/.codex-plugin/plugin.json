@@ -1,0 +1,42 @@
+{
+  "interface": {
+    "displayName": "Stealth Commander",
+    "shortDescription": "Control your PC from chat",
+    "longDescription": "Stealth Commander lets you connect ChatGPT to a Windows computer you own or administer. Sign in to your Stealth Commander account, select a paired PC, and use the tools exposed by the secure remote MCP connection for authorized machine operations and status checks. Depending on the installed client, supported workflows can include running commands, inspecting hidden desktop sessions, and accessing observability features. The paired PC must be online, and access is scoped to the selected device and its Windows account. Some browser and native-desktop capture workflows remain under private testing. The service requires OAuth sign-in and explicit device consent. Do not connect devices that you do not own or have permission to manage.",
+    "developerName": "Nexusmap.ai",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Access a paired Windows PC",
+      "Inspect device and session status",
+      "Run authorized commands",
+      "Review supported desktop observability"
+    ],
+    "websiteURL": "https://stealthcommander.pages.dev/",
+    "defaultPrompt": [
+      "Show the status of my paired Windows PC.",
+      "List the tools available on my connected PC.",
+      "Check which hidden desktop sessions are active."
+    ],
+    "brandColor": "#176BCE",
+    "brandColorDark": "#479AF5",
+    "composerIcon": "./assets/ninja-mask.png",
+    "logo": "./assets/ninja-mask.png"
+  },
+  "name": "stealth-commander",
+  "version": "1.0.6",
+  "description": "Connect ChatGPT to a Windows PC that you own and have paired with Stealth Commander.",
+  "author": {
+    "name": "Nexusmap.ai",
+    "url": "https://stealthcommander.pages.dev/"
+  },
+  "keywords": [
+    "windows",
+    "remote desktop",
+    "desktop automation",
+    "mcp",
+    "device management"
+  ],
+  "homepage": "https://stealthcommander.pages.dev/",
+  "mcpServers": "./.mcp.json",
+  "skills": "./skills/"
+}

@@ -1,0 +1,29 @@
+{
+  "name": "stealth-commander",
+  "version": "1.1.3-private.4",
+  "description": "Run owned Windows application sessions on hidden desktops and inspect their status and captured windows.",
+  "author": {
+    "name": "Nexusmap.ai",
+    "url": "https://stealthcommander.pages.dev/"
+  },
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Stealth Commander",
+    "shortDescription": "Hidden desktop MCP delegation",
+    "longDescription": "Use Stealth Commander on Windows to launch owned native apps, separate-profile Chrome sessions, and copied Python projects in PyCharm on hidden desktops. Inspect supported session state, controls, and captured windows through the bundled MCP tools and workflow. Background commands run with your Windows account permissions; hidden desktops do not isolate filesystem or network access. Browser and IDE workflows require their documented dependencies.",
+    "developerName": "Nexusmap.ai",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Use Stealth Commander to run this on a hidden Windows desktop.",
+      "Check my hidden Windows desktops in the Stealth Commander dashboard."
+    ],
+    "logo": "./assets/ninja-mask.png",
+    "composerIcon": "./assets/ninja-mask.png"
+  }
+}

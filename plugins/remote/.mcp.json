@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "stealth-commander": {
+      "type": "streamable-http",
+      "url": "https://stealthcommander.pages.dev/mcp",
+      "headers": {},
+      "extensions": {
+        "com.openai": {
+          "auth": {
+            "type": "oauth"
+          }
+        }
+      }
+    }
+  }
+}

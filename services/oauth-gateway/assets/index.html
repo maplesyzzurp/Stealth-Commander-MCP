@@ -1,0 +1,674 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<link rel="icon" type="image/png" href="/icon.png">
+<title>Stealth Commander · Control Center</title>
+<style>
+:root{color-scheme:dark;font-family:Inter,system-ui,-apple-system,sans-serif;background:#080a0f;color:#e6edf3}
+*{box-sizing:border-box}body{margin:0;padding:12px 14px;max-width:1360px;margin-inline:auto}
+header{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:11px 14px;background:#10141d;border:1px solid #222a3d;border-radius:11px;margin-bottom:10px}
+.brand{display:flex;align-items:center;gap:9px;font-weight:700;font-size:15px}
+.dot{width:9px;height:9px;border-radius:99px;background:#2ea043;box-shadow:0 0 8px #2ea043}
+.dot.warn{background:#d29922;box-shadow:0 0 8px #d29922}
+.nav{display:flex;gap:6px;flex-wrap:wrap}
+.tab{background:#161c28;color:#9fb0c7;border:1px solid #263044;padding:6px 12px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer}
+.tab.active{background:#1f6feb;color:#fff;border-color:#388bfd}
+.pills{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12px}
+.pill{padding:4px 8px;border-radius:6px;background:#171d2b;border:1px solid #283248;color:#9fb0c7;font-size:11px;font-weight:600}
+.pill.ok{background:#0f291a;border-color:#238636;color:#3fb950}
+.pill.warn{background:#2d210f;border-color:#9e6a03;color:#d29922}
+.view{display:none}.view.active{display:block}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin-bottom:10px}
+.kpi{background:#10141d;border:1px solid #222a3d;border-radius:10px;padding:10px 12px}
+.kpi .lbl{font-size:11px;color:#8b9bb4;text-transform:uppercase;letter-spacing:.04em}
+.kpi .val{font-size:20px;font-weight:700;margin-top:3px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:10px;margin-bottom:10px}
+.panel{background:#10141d;border:1px solid #222a3d;border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px}
+.panel h3{margin:0;font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:#8b9bb4;display:flex;justify-content:space-between;align-items:center}
+.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+input,select{flex:1;min-width:130px;background:#080a0f;border:1px solid #283248;color:#e6edf3;padding:7px 9px;border-radius:6px;font-size:12px}
+button,a.btn{background:#1f6feb;color:#fff;border:0;padding:6px 11px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:5px}
+button.sec,a.btn.sec{background:#1c2333;border:1px solid #2e3850;color:#c9d1d9}
+button.danger{background:#3d161b;border:1px solid #8b2635;color:#ff7b72}
+button.ok{background:#196c2e;color:#fff}
+pre,code.blk{margin:0;padding:8px 10px;background:#06080c;border:1px solid #1d2433;border-radius:6px;font-size:11px;overflow:auto;white-space:pre-wrap;word-break:break-all;color:#a5d6ff;font-family:ui-monospace,Consolas,monospace}
+.card{background:#10141d;border:1px solid #222a3d;border-radius:10px;overflow:hidden}
+.card-hd{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;font-size:13px;font-weight:600;border-bottom:1px solid #1d2433}
+.card img{width:100%;display:block;background:#05070a;aspect-ratio:16/10;object-fit:contain}
+.meta{padding:7px 10px;font-size:11px;color:#8b9bb4;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th,td{text-align:left;padding:7px 9px;border-bottom:1px solid #1c2333}
+th{color:#8b9bb4;font-size:11px;text-transform:uppercase}
+#toast{position:fixed;bottom:14px;right:14px;background:#1f6feb;color:#fff;padding:8px 13px;border-radius:8px;font-size:12px;font-weight:600;display:none;z-index:99}
+</style></head><body>
+<header>
+  <div class="brand"><img src="/icon.png" width="28" height="28" alt="Stealth Commander ninja"><span class="dot" id="hdot"></span><span id="host">Stealth Commander</span></div>
+  <nav class="nav">
+    <button class="tab active" onclick="showTab('devices',this)">Devices</button>
+    <button class="tab" onclick="showTab('connect',this)">Connect AI / MCP</button>
+    <button class="tab" onclick="showTab('live',this)">Live Desktops (<span id="dcount">0</span>)</button>
+    <button class="tab" onclick="showTab('usage',this)">Usage & Logs</button>
+    <button class="tab" onclick="showTab('settings',this)">Settings</button>
+    <button class="tab" id="acctTabBtn" onclick="showTab('account',this)">Account (<span id="acctBadge">Sign In</span>)</button>
+  </nav>
+  <div class="pills">
+    <select id="acctDeviceSelect" style="display:none;max-width:210px;padding:4px 8px;font-size:11px" onchange="switchAccountDevice(this.value)"></select>
+    <button class="sec" id="acctBtn" onclick="openAuthModal()">Sign In / Account</button>
+    <span class="pill ok" id="tstatus">ONLINE</span>
+    <a class="btn sec" id="openDash" href="#" target="_blank">Open Live Dashboard</a>
+    <button class="danger" id="killTunBtn" style="display:none" onclick="act('stop_tunnel')">Kill Public Tunnel (Lock Local)</button>
+    <button class="sec" onclick="copyText(document.getElementById('mcpUrlCode').textContent,'Copied /mcp URL!')">Copy /mcp URL</button>
+  </div>
+</header>
+
+<section id="view-devices" class="view active">
+  <div class="kpis">
+    <div class="kpi"><div class="lbl">Host Device</div><div class="val" id="k-host">—</div></div>
+    <div class="kpi"><div class="lbl">Security Mode</div><div class="val" id="k-tun">Local Only</div></div>
+    <div class="kpi"><div class="lbl">Active Hidden Desktops</div><div class="val" id="k-desk">0</div></div>
+    <div class="kpi"><div class="lbl">Connected Local AI Clients</div><div class="val" id="k-cli">0 / 7</div></div>
+  </div>
+  <div class="panel" style="margin-bottom:10px">
+    <h3><span>Managed Devices & Hidden Desktop Nodes</span><div class="row"><button class="danger" onclick="act('stop_tunnel')">Lock Local-Only (Stop Tunnel)</button><button class="sec" onclick="act('reconnect_tunnel')">Enable Temp Tunnel</button><button onclick="act('launch_chrome')">+ New Chrome Desktop</button><button class="sec" onclick="act('launch_notepad')">+ New Native Desktop</button></div></h3>
+    <table>
+      <thead><tr><th>Device / Node</th><th>Type</th><th>Status</th><th>Telemetry / Endpoint</th><th>Actions</th></tr></thead>
+      <tbody id="devTable"></tbody>
+    </table>
+  </div>
+  <div class="panel">
+    <h3><span>Pair / Setup Any Windows PC via Approved Private Build</span><button class="sec" onclick="copyText('stealth-commander setup','Copied setup command!')">Copy Setup Command</button></h3>
+    <code class="blk">stealth-commander setup --enable-remote</code>
+  </div>
+</section>
+
+<section id="view-connect" class="view">
+  <div class="panel" style="margin-bottom:10px">
+    <h3><span>Local AI Clients on This PC</span><button class="ok" onclick="act('sync_clients')">Auto-Connect / Repair All Local Clients</button></h3>
+    <table>
+      <thead><tr><th>AI Client / IDE</th><th>Status</th><th>Config Path</th><th>Action</th></tr></thead>
+      <tbody id="cliTable"></tbody>
+    </table>
+  </div>
+  <div class="grid">
+    <div class="panel">
+      <h3><span>1-Click IDE Auto-Install</span></h3>
+      <p style="margin:0;font-size:12px;color:#8b9bb4">Click to auto-register Stealth Commander in Cursor or VS Code, or copy the Remote MCP URL for ChatGPT, Claude Web, and mobile agents.</p>
+      <div class="row">
+        <a class="btn" id="cursorLink" href="#">Open in Cursor</a>
+        <a class="btn sec" id="vscodeLink" href="#">Open in VS Code</a>
+        <button class="sec" onclick="act('sync_clients')">Auto-Connect Local GPT / Claude / Droid</button>
+      </div>
+      <h3 style="margin-top:6px"><span>Remote HTTPS MCP Endpoint (ChatGPT / Claude / Mobile)</span><button class="sec" onclick="copyText(document.getElementById('mcpUrlCode').textContent,'Copied Remote MCP URL!')">Copy URL</button></h3>
+      <code class="blk" id="mcpUrlCode"></code>
+      <p>Connect with OAuth, sign in to your Stealth Commander account, and choose one paired PC.</p>
+    </div>
+    <div class="panel">
+      <h3><span>Universal MCP JSON (Claude Desktop / Cursor / Windsurf / Droid)</span><button class="sec" onclick="copyText(document.getElementById('jsonSnippet').textContent,'Copied JSON config!')">Copy JSON</button></h3>
+      <pre id="jsonSnippet">{
+  "mcpServers": {
+    "stealth-commander": {
+      "command": "stealth-commander",
+      "args": ["serve"]
+    }
+  }
+}</pre>
+      <h3><span>ChatGPT / Codex CLI & Claude Code CLI</span><button class="sec" onclick="copyText('claude mcp add stealth-commander -- stealth-commander serve','Copied Claude CLI command!')">Copy CLI</button></h3>
+      <code class="blk">claude mcp add stealth-commander -- stealth-commander serve</code>
+    </div>
+  </div>
+</section>
+
+<section id="view-live" class="view">
+  <div class="grid" style="margin-bottom:10px">
+    <div class="panel">
+      <h3>Quick Launch Hidden Desktop</h3>
+      <div class="row">
+        <button onclick="act('launch_chrome')">+ Chrome</button>
+        <button class="sec" onclick="act('launch_notepad')">+ Notepad</button>
+        <input id="appPath" placeholder="Executable or PyCharm project path">
+        <button class="sec" onclick="act('launch_app')">Launch App</button>
+        <button class="sec" onclick="act('launch_pycharm')">PyCharm</button>
+      </div>
+    </div>
+    <div class="panel">
+      <h3>Remote Command (CREATE_NO_WINDOW)</h3>
+      <div class="row">
+        <input id="cmdIn" placeholder="e.g. Get-Process | Select-Object -First 5">
+        <button onclick="act('run_cmd')">Run</button>
+      </div>
+    </div>
+  </div>
+  <pre id="out" style="display:none;margin-bottom:10px;max-height:150px"></pre>
+  <div class="grid" id="grid"></div>
+</section>
+
+<section id="view-usage" class="view">
+  <div class="kpis">
+    <div class="kpi"><div class="lbl">Total MCP / Hub Calls</div><div class="val" id="u-calls">0</div></div>
+    <div class="kpi"><div class="lbl">Exposed MCP Tools</div><div class="val" id="u-tools">10</div></div>
+    <div class="kpi"><div class="lbl">Capture Engine</div><div class="val">D3D11 · 60 FPS</div></div>
+    <div class="kpi"><div class="lbl">JPEG Subsampling</div><div class="val">4:4:4 Crisp</div></div>
+  </div>
+  <div class="panel" style="margin-bottom:10px">
+    <h3><span>Recent Activity & Tool Call Audit Log</span><button class="sec" onclick="act('clear_usage')">Clear Log</button></h3>
+    <table>
+      <thead><tr><th>Time</th><th>Tool / Action</th><th>Status</th><th>Latency</th><th>Details</th></tr></thead>
+      <tbody id="usageTable"></tbody>
+    </table>
+  </div>
+</section>
+
+<section id="view-settings" class="view">
+  <div class="grid">
+    <div class="panel">
+      <h3>Stream & Hub Settings</h3>
+      <div class="row"><label style="width:180px;font-size:12px">Target Frame Rate</label><select id="setFps"><option value="60">60 FPS (Direct3D 11 GPU)</option><option value="30">30 FPS (Balanced)</option></select></div>
+      <div class="row"><label style="width:180px;font-size:12px">Auto-Start Dashboard</label><select id="setAutoDash"><option value="true">Enabled (On any MCP call)</option><option value="false">Manual only</option></select></div>
+      <div class="row"><label style="width:180px;font-size:12px">Cloudflare Pages Proxy</label><select id="setPages" disabled><option value="false">Private testing — publishing disabled</option></select></div>
+      <div class="row" style="margin-top:6px"><button onclick="saveSettings()">Save Settings</button><button class="sec" onclick="act('restart_dashboard')">Restart 60 FPS Dashboard</button><button class="sec" onclick="act('reconnect_tunnel')">Reconnect Cloudflare Tunnel</button></div>
+    </div>
+    <div class="panel">
+      <h3>System Diagnostics & Endpoints</h3>
+      <div class="row"><button class="sec" onclick="act('doctor')">Run Environment Doctor</button><button class="sec" onclick="act('sync_clients')">Sync All AI Clients</button></div>
+      <pre id="diagOut">Click "Run Environment Doctor" to inspect Python, Chrome, PyCharm, and Direct3D 11 readiness.</pre>
+    </div>
+  </div>
+</section>
+
+<section id="view-account" class="view">
+  <div id="acctSignedOutPanel" class="grid">
+    <div class="panel">
+      <h3><span>Sign In or Create Your Stealth Commander Account</span></h3>
+      <p style="margin:0;font-size:12px;color:#9fb0c7">Sign in to link your Windows PCs and VDI boxes to your personal account. Your devices auto-discover over HTTPS without manual tunnel URLs and are available through your signed-in account.</p>
+      <div class="row" style="margin-top:4px">
+        <button id="modeSignInBtn" onclick="setAuthMode('login')">Sign In</button>
+        <button class="sec" id="modeRegBtn" onclick="setAuthMode('register')">Create Account</button>
+        <button class="sec" id="modeKeyBtn" onclick="setAuthMode('key')">API Key Login</button>
+      </div>
+      <div id="authEmailFields" style="display:flex;flex-direction:column;gap:8px;margin-top:4px">
+        <input id="acctEmailIn" type="email" placeholder="user@example.com">
+        <input id="acctPassIn" type="password" placeholder="Password (min 12 characters)">
+        <input id="acctNameIn" type="text" placeholder="Display Name (optional)" style="display:none">
+      </div>
+      <div id="authKeyFields" style="display:none;flex-direction:column;gap:8px;margin-top:4px">
+        <input id="acctKeyIn" type="password" placeholder="Paste your sc_live_... Personal Account API Key">
+      </div>
+      <div class="row" style="margin-top:6px">
+        <button onclick="submitAuth('inline')" id="acctSubmitBtn">Sign In to Account</button>
+        <span id="acctAuthMsg" style="font-size:12px;color:#ff7b72"></span>
+      </div>
+    </div>
+    <div class="panel">
+      <h3><span>CLI Account Login & Setup</span><button class="sec" onclick="copyText('stealth-commander login','Copied CLI login command!')">Copy CLI Login</button></h3>
+      <p style="margin:0;font-size:12px;color:#8b9bb4">You can also sign in or register directly from PowerShell on any Windows PC:</p>
+      <code class="blk">stealth-commander login</code>
+      <h3><span>Check Signed-In Account in CLI</span></h3>
+      <code class="blk">stealth-commander whoami</code>
+    </div>
+  </div>
+
+  <div id="acctSignedInPanel" style="display:none">
+    <div class="panel" style="margin-bottom:10px">
+      <h3><span>Stripe test mode</span></h3>
+      <p>Private billing test. No real money moves. Public pricing has not been set.</p>
+      <p id="billingStatus" aria-live="polite">—</p>
+      <div class="row"><button onclick="openBilling('checkout')">Open test Checkout</button><button class="sec" onclick="openBilling('portal')">Open test billing Portal</button><button class="sec" onclick="loadBilling()">Refresh billing</button></div>
+    </div>
+    <div class="kpis">
+      <div class="kpi"><div class="lbl">Signed-In Account</div><div class="val" id="acctEmailVal" style="font-size:15px">—</div></div>
+      <div class="kpi"><div class="lbl">Display Name</div><div class="val" id="acctNameVal" style="font-size:15px">—</div></div>
+      <div class="kpi"><div class="lbl">Linked Windows PCs</div><div class="val" id="acctDevCount">0</div></div>
+      <div class="kpi"><div class="lbl">Session Status</div><div class="val" style="font-size:15px;color:#3fb950">Authenticated</div></div>
+    </div>
+    <div class="grid">
+      <div class="panel">
+        <h3><span>Account Security & Personal API Key</span><div class="row"><button class="sec" onclick="copyText(document.getElementById('acctKeyCode').textContent,'Copied Account API Key!')">Copy API Key</button><button class="sec" onclick="rotateApiKey()">Rotate Key</button><button class="danger" onclick="logoutAccount()">Sign Out</button></div></h3>
+        <code class="blk" id="acctKeyCode">—</code>
+        <h3 style="margin-top:6px"><span>1-Step Authenticated PC Setup (Auto-Links Any Windows PC to Your Account)</span><button class="sec" onclick="copyText(document.getElementById('acctSetupCmd').textContent,'Copied Account Setup Command!')">Copy Setup Command</button></h3>
+        <code class="blk" id="acctSetupCmd">stealth-commander setup --enable-remote</code>
+      </div>
+      <div class="panel">
+        <h3><span>Account-Linked Windows PCs & VDI Nodes</span><button class="sec" onclick="loadAccountMe(true)">Refresh Devices</button></h3>
+        <table>
+          <thead><tr><th>PC / Hostname</th><th>User</th><th>Status</th><th>Action</th></tr></thead>
+          <tbody id="acctDevsTable"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div id="authModal" style="display:none;position:fixed;inset:0;background:rgba(4,6,10,0.78);z-index:90;align-items:center;justify-content:center;padding:14px">
+  <div class="panel" style="width:100%;max-width:440px;border-color:#388bfd;box-shadow:0 16px 48px rgba(0,0,0,0.6)">
+    <h3><span>Stealth Commander Account</span><button class="sec" onclick="closeAuthModal()">Close</button></h3>
+    <div class="row">
+      <button id="mModeSignInBtn" onclick="setAuthMode('login')">Sign In</button>
+      <button class="sec" id="mModeRegBtn" onclick="setAuthMode('register')">Create Account</button>
+      <button class="sec" id="mModeKeyBtn" onclick="setAuthMode('key')">API Key</button>
+    </div>
+    <div id="mAuthEmailFields" style="display:flex;flex-direction:column;gap:8px;margin-top:4px">
+      <input id="mAcctEmailIn" type="email" placeholder="user@example.com">
+      <input id="mAcctPassIn" type="password" placeholder="Password (min 12 characters)">
+      <input id="mAcctNameIn" type="text" placeholder="Display Name (optional)" style="display:none">
+    </div>
+    <div id="mAuthKeyFields" style="display:none;flex-direction:column;gap:8px;margin-top:4px">
+      <input id="mAcctKeyIn" type="password" placeholder="Paste your sc_live_... Personal Account API Key">
+    </div>
+    <div class="row" style="margin-top:6px;justify-content:space-between">
+      <button onclick="submitAuth('modal')" id="mAcctSubmitBtn">Sign In</button>
+      <span id="mAcctAuthMsg" style="font-size:12px;color:#ff7b72"></span>
+    </div>
+  </div>
+</div>
+
+<div id="setupBanner" class="panel" style="display:none;margin-bottom:10px;border-color:#388bfd;background:#0d1829">
+  <h3><span>Set Up Stealth Commander on Your PC (or Sign In to Your Account)</span><div class="row"><button onclick="openAuthModal()">Sign In / Create Account</button><button class="sec" onclick="copyText(document.getElementById('bannerSetupCmd').textContent,'Copied setup command!')">Copy Setup Command</button></div></h3>
+  <p style="margin:0;font-size:12px;color:#9fb0c7">Sign in to your Stealth Commander account to auto-connect your linked Windows PCs, or run the command below in PowerShell on your Windows PC:</p>
+  <code class="blk" id="bannerSetupCmd">stealth-commander setup --enable-remote</code>
+  <p>Private testing: select a PC paired to your signed-in account.</p>
+</div>
+<div id="toast"></div>
+<script>
+let selectedDeviceId='',authMode='login',currentAccount=null,controlCsrf='',billingCsrf='',accountEpoch=0,polling=false;
+const pendingRequests=new Set();
+const AUTH_ORIGIN='https://stealthcommander.pages.dev';
+const rawPath=location.pathname.replace(/\/+$/,'');
+const out=document.getElementById('out'),grid=document.getElementById('grid'),cards=new Map();
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.style.display='block';setTimeout(()=>t.style.display='none',2200);}
+function copyText(txt,msg){navigator.clipboard.writeText(txt);toast(msg||'Copied!');}
+function showTab(name,btn){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
+  document.getElementById('view-'+name).classList.add('active');
+  if(btn)btn.classList.add('active');
+}
+
+function authBaseUrl(){return '';}
+function getAuthToken(){return '';}
+function setAuthToken(){try{localStorage.removeItem('sc_auth_token');}catch(_){}}
+function clearDeviceState(){
+  accountEpoch++;
+  for(const controller of pendingRequests)controller.abort();
+  pendingRequests.clear();
+  for(const c of cards.values()){if(c.objectUrl)URL.revokeObjectURL(c.objectUrl);c.img.src='';c.node.remove();}
+  cards.clear();
+  selectedDeviceId='';
+  for(const id of ['out','diagOut','cliTable','devTable','usageTable']){
+    const el=document.getElementById(id);if(el)el.textContent='';
+  }
+  for(const id of ['host','k-host','k-desk','k-cli','u-calls','u-tools']){
+    const el=document.getElementById(id);if(el)el.textContent=id==='host'?'Stealth Commander':'—';
+  }
+  const dashboard=document.getElementById('openDash');if(dashboard)dashboard.removeAttribute('href');
+  try{for(const key of ['sc_auth_token','sc_remote_api','sc_selected_device'])localStorage.removeItem(key);}catch(_){}
+}
+function clearPrivateState(){
+  clearDeviceState();controlCsrf='';billingCsrf='';
+  for(const id of ['acctKeyCode','billingStatus']){const el=document.getElementById(id);if(el)el.textContent='—';}
+}
+async function accountRequest(path,options={}){
+  if(!path.startsWith('/api/'))throw new Error('Invalid account route.');
+  const controller=new AbortController();pendingRequests.add(controller);
+  const timer=setTimeout(()=>controller.abort(),15000);
+  try{return await fetch(path,{...options,credentials:'same-origin',cache:'no-store',redirect:'error',signal:controller.signal});}
+  finally{clearTimeout(timer);pendingRequests.delete(controller);}
+}
+async function sessionCsrf(){
+  if(controlCsrf)return controlCsrf;
+  const epoch=accountEpoch;
+  const response=await accountRequest('/api/account/session');
+  const data=await response.json();
+  if(!response.ok||epoch!==accountEpoch||typeof data.csrfToken!=='string')throw new Error('Sign in again.');
+  controlCsrf=data.csrfToken;return controlCsrf;
+}
+async function pcRequest(path,method='GET',payload){
+  const deviceId=selectedDeviceId,epoch=accountEpoch;
+  if(!currentAccount||!deviceId||!currentAccount.devices?.some(d=>d.device_id===deviceId))throw new Error('Choose one of your paired PCs.');
+  const csrf=await sessionCsrf();
+  if(epoch!==accountEpoch)throw new Error('Account changed.');
+  const response=await accountRequest('/api/device/control',{
+    method:'POST',headers:{'Content-Type':'application/json','X-Stealth-CSRF':csrf},
+    body:JSON.stringify({device_id:deviceId,path,method,...(payload===undefined?{}:{payload})})
+  });
+  if(epoch!==accountEpoch||deviceId!==selectedDeviceId)throw new Error('Account or PC changed.');
+  if(!response.ok){if(response.status===401){clearPrivateState();renderAccountState(null);}throw new Error('PC request rejected ('+response.status+').');}
+  return response;
+}
+function openAuthModal(){
+  if(currentAccount){showTab('account',document.getElementById('acctTabBtn'));return;}
+  document.getElementById('authModal').style.display='flex';
+}
+function closeAuthModal(){
+  document.getElementById('authModal').style.display='none';
+}
+function setAuthMode(m){
+  authMode=m;
+  const isReg=m==='register',isKey=m==='key';
+  for(const p of ['','m']){
+    const sBtn=document.getElementById((p?p+'ModeSignInBtn':'modeSignInBtn'));
+    const rBtn=document.getElementById((p?p+'ModeRegBtn':'modeRegBtn'));
+    const kBtn=document.getElementById((p?p+'ModeKeyBtn':'modeKeyBtn'));
+    if(sBtn)sBtn.className=m==='login'?'':'sec';
+    if(rBtn)rBtn.className=isReg?'':'sec';
+    if(kBtn)kBtn.className=isKey?'':'sec';
+    const ef=document.getElementById((p?p+'AuthEmailFields':'authEmailFields'));
+    const kf=document.getElementById((p?p+'AuthKeyFields':'authKeyFields'));
+    const nf=document.getElementById((p?p+'AcctNameIn':'acctNameIn'));
+    const sb=document.getElementById((p?p+'AcctSubmitBtn':'acctSubmitBtn'));
+    if(ef)ef.style.display=isKey?'none':'flex';
+    if(kf)kf.style.display=isKey?'flex':'none';
+    if(nf)nf.style.display=isReg?'block':'none';
+    if(sb)sb.textContent=isReg?'Create Account':(isKey?'Sign In with API Key':'Sign In to Account');
+  }
+}
+
+function switchAccountDevice(id){
+  if(!currentAccount?.devices?.some(d=>d.device_id===id))return;
+  clearDeviceState();selectedDeviceId=id;
+  document.getElementById('setupBanner').style.display='none';
+  renderAccountState(currentAccount);poll();
+}
+function escapeHtml(value){
+  return String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+function jsArg(value){
+  return escapeHtml(JSON.stringify(String(value??'')));
+}
+function renderAccountState(user){
+  if((currentAccount?.email||'')!==(user?.email||''))clearPrivateState();
+  currentAccount=user||null;
+  if(!user||!user.devices?.some(d=>d.device_id===selectedDeviceId))selectedDeviceId='';
+  const badge=document.getElementById('acctBadge');
+  const btn=document.getElementById('acctBtn');
+  const outP=document.getElementById('acctSignedOutPanel');
+  const inP=document.getElementById('acctSignedInPanel');
+  const sel=document.getElementById('acctDeviceSelect');
+  if(!user){
+    if(badge)badge.textContent='Sign In';
+    if(btn){btn.textContent='Sign In / Account';btn.className='sec';}
+    if(outP)outP.style.display='grid';
+    if(inP)inP.style.display='none';
+    if(sel)sel.style.display='none';
+    return;
+  }
+  if(badge)badge.textContent=user.email;
+  if(btn){btn.textContent=user.email;btn.className='ok';}
+  if(outP)outP.style.display='none';
+  if(inP)inP.style.display='block';
+  document.getElementById('acctEmailVal').textContent=user.email||'—';
+  document.getElementById('acctNameVal').textContent=user.name||user.email.split('@')[0];
+  document.getElementById('acctKeyCode').textContent=user.api_key||'—';
+  const setupCmd='stealth-commander setup --enable-remote';
+  document.getElementById('acctSetupCmd').textContent=setupCmd;
+  const bCmd=document.getElementById('bannerSetupCmd');
+  if(bCmd)bCmd.textContent=setupCmd;
+  const devs=Array.isArray(user.devices)?user.devices:[];
+  document.getElementById('acctDevCount').textContent=String(devs.length);
+  const tb=document.getElementById('acctDevsTable');
+  if(tb){
+    tb.innerHTML=devs.length?devs.map(d=>{
+      const id=d.device_id||'';
+      const active=id===selectedDeviceId;
+      return `<tr>
+        <td><strong>${escapeHtml(d.hostname||d.device_id||'Windows PC')}</strong></td>
+        <td>${escapeHtml(d.username||'—')}</td>
+        <td><span class="pill ${d.tunnel_url?'ok':'warn'}">${active?'CONNECTED':(d.tunnel_url?'HTTPS TUNNEL':'LOCAL ONLY')}</span></td>
+        <td class="row">
+          ${id?`<button class="${active?'ok':'sec'}" onclick="switchAccountDevice(${jsArg(id)})">${active?'Active':'Connect'}</button>`:''}
+          <button class="danger" onclick="unlinkAccountDevice(${jsArg(d.device_id||d.hostname)})">Unlink</button>
+        </td>
+      </tr>`;
+    }).join(''):'<tr><td colspan="4" style="color:#8b9bb4">No Windows PCs linked yet. Run the Setup Command on your PC.</td></tr>';
+  }
+  if(sel){
+    if(devs.length){
+      sel.style.display='inline-block';
+      sel.innerHTML=devs.map(d=>{
+        const id=d.device_id||'';
+        return `<option value="${escapeHtml(id)}" ${id===selectedDeviceId?'selected':''}>PC: ${escapeHtml(d.hostname||d.device_id)}</option>`;
+      }).join('');
+    }else{
+      sel.style.display='none';
+    }
+  }
+}
+
+async function loadAccountMe(forceSwitch=false){
+  const epoch=accountEpoch;
+  try{
+    const r=await accountRequest('/api/auth/me');
+    const j=await r.json();
+    if(epoch!==accountEpoch)return null;
+    if(!r.ok||!j.ok||!j.user){clearPrivateState();renderAccountState(null);return null;}
+    renderAccountState(j.user);
+    const devs=Array.isArray(j.user.devices)?j.user.devices:[];
+    if(forceSwitch||!selectedDeviceId)selectedDeviceId=devs[0]?.device_id||'';
+    renderAccountState(j.user);
+    await loadBilling();
+    return j.user;
+  }catch(_){if(epoch===accountEpoch){clearPrivateState();renderAccountState(null);}return null;}
+}
+async function submitAuth(source){
+  const p=source==='modal'?'m':'';
+  const email=(document.getElementById(p?p+'AcctEmailIn':'acctEmailIn')?.value||'').trim();
+  const password=(document.getElementById(p?p+'AcctPassIn':'acctPassIn')?.value||'');
+  const name=(document.getElementById(p?p+'AcctNameIn':'acctNameIn')?.value||'').trim();
+  const apiKey=(document.getElementById(p?p+'AcctKeyIn':'acctKeyIn')?.value||'').trim();
+  const msgEl=document.getElementById(p?p+'AcctAuthMsg':'acctAuthMsg');
+  if(msgEl)msgEl.textContent='Authenticating...';
+  const ep=authMode==='register'?'/api/auth/register':'/api/auth/login';
+  const payload=authMode==='key'?{api_key:apiKey}:{email,password,name};
+  clearPrivateState();renderAccountState(null);
+  try{
+    const r=await accountRequest(ep,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const j=await r.json();
+    if(!r.ok||!j.ok){
+      if(msgEl)msgEl.textContent=j.error||'Authentication failed';
+      return;
+    }
+    setAuthToken();
+    if(msgEl)msgEl.textContent='';
+    closeAuthModal();
+    renderAccountState(j.user);
+    toast('Signed in as '+j.user.email);
+    await loadAccountMe(true);
+    poll();
+  }catch(e){
+    if(msgEl)msgEl.textContent='Network error: '+e;
+  }
+}
+
+async function logoutAccount(){
+  clearPrivateState();renderAccountState(null);
+  try{await accountRequest('/api/auth/logout',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});}catch(_){}
+  toast('Signed out');
+}
+async function rotateApiKey(){
+  try{
+    const r=await accountRequest('/api/account/rotate-key',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    const j=await r.json();
+    if(!r.ok||!j.ok)throw new Error(j.error||'Key rotation failed.');
+    clearPrivateState();renderAccountState(null);toast('Key rotated. Sign in and pair your PC again.');
+  }catch(e){toast(e.message);}
+}
+async function unlinkAccountDevice(deviceId){
+  if(!currentAccount?.devices?.some(d=>d.device_id===deviceId))return;
+  if(selectedDeviceId===deviceId)clearDeviceState();
+  try{
+    const r=await accountRequest('/api/account/devices',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({device_id:deviceId})});
+    const j=await r.json();
+    if(!r.ok||!j.ok)throw new Error(j.error||'Unlink failed.');
+    renderAccountState(j.user);toast('PC unlinked');
+  }catch(e){toast(e.message);}
+}
+async function loadBilling(){
+  if(!currentAccount)return;
+  const epoch=accountEpoch;
+  try{
+    const r=await accountRequest('/api/billing/status');const j=await r.json();
+    if(epoch!==accountEpoch)return;
+    if(!r.ok||j.mode!=='test'||j.accessAllowed!==false)throw new Error('Test billing unavailable.');
+    billingCsrf=j.csrfToken;
+    document.getElementById('billingStatus').textContent=j.testSubscriptionActive?'Test subscription active':'No active test subscription';
+  }catch(_){if(epoch===accountEpoch){billingCsrf='';document.getElementById('billingStatus').textContent='Test billing unavailable';}}
+}
+async function openBilling(kind){
+  if(!['checkout','portal'].includes(kind)||!currentAccount)return;
+  const epoch=accountEpoch;
+  try{
+    if(!billingCsrf)await loadBilling();
+    if(!billingCsrf||epoch!==accountEpoch)throw new Error('Sign in again.');
+    const r=await accountRequest('/api/billing/'+kind,{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':billingCsrf},body:'{}'});
+    const j=await r.json();
+    if(epoch!==accountEpoch)return;
+    if(!r.ok||j.mode!=='test'||j.accessAllowed!==false)throw new Error(j.error||'Test billing request failed.');
+    const u=new URL(j.url);const expected=kind==='checkout'?'checkout.stripe.com':'billing.stripe.com';
+    if(u.protocol!=='https:'||u.hostname!==expected||u.username||u.password||u.port)throw new Error('Invalid Stripe destination.');
+    location.assign(u.href);
+  }catch(e){toast(e.message);}
+}
+async function initApiBase(){
+  try{for(const key of ['sc_auth_token','sc_remote_api','sc_selected_device'])localStorage.removeItem(key);}catch(_){}
+  if(location.hash)history.replaceState(null,'',location.pathname);
+  await loadAccountMe(false);
+  document.getElementById('mcpUrlCode').textContent='https://stealthcommander.pages.dev/mcp';
+}
+const cursorCfg=btoa(JSON.stringify({command:"stealth-commander",args:["serve"]}));
+document.getElementById('cursorLink').href='cursor://anysphere.cursor-deeplink/mcp/install?name=stealth-commander&config='+encodeURIComponent(cursorCfg);
+document.getElementById('vscodeLink').href='vscode:mcp/install?'+encodeURIComponent(JSON.stringify({name:'stealth-commander',command:'stealth-commander',args:['serve']}));
+
+async function act(kind,extra={}){
+  if(!currentAccount||!selectedDeviceId){toast('Sign in and choose your paired PC.');return;}
+  const epoch=accountEpoch;
+  toast('Running '+kind+'...');
+  const body={kind,target:document.getElementById('appPath')?.value.trim()||'',cmd:document.getElementById('cmdIn')?.value.trim()||'',...extra};
+  try{
+    const r=await pcRequest('/action','POST',body);
+    const j=await r.json();
+    if(epoch!==accountEpoch)return;
+    if(kind==='doctor'){document.getElementById('diagOut').textContent=JSON.stringify(j,null,2);}
+    else if(out){out.style.display='block';out.textContent=JSON.stringify(j,null,2);}
+    toast(j.ok!==false?'Completed '+kind:'Action error');
+    poll();
+  }catch(e){toast('Error: '+e);}
+}
+async function saveSettings(){
+  await act('save_settings',{settings:{
+    target_fps:Number(document.getElementById('setFps').value),
+    auto_start_dashboard:document.getElementById('setAutoDash').value==='true',
+    auto_publish_pages:false
+  }});
+}
+
+async function poll(){
+  if(polling)return;
+  if(!currentAccount||!selectedDeviceId){
+    document.getElementById('setupBanner').style.display='flex';
+    document.getElementById('tstatus').textContent=currentAccount?'CHOOSE YOUR PC':'SIGN IN REQUIRED';
+    document.getElementById('tstatus').className='pill warn';return;
+  }
+  polling=true;
+  const epoch=accountEpoch;
+  try{
+    const r=await pcRequest('/meta');
+    const j=await r.json();
+    if(epoch!==accountEpoch)return;
+    document.getElementById('setupBanner').style.display='none';
+    const dev=j.device||{};
+    document.getElementById('host').textContent='Stealth Commander · '+(dev.hostname||'PC');
+    document.getElementById('k-host').textContent=dev.hostname||'PC';
+    const tunOk=Boolean(dev.tunnel_online);
+    document.getElementById('k-tun').textContent=tunOk?'Authenticated remote access':'Local only';
+    document.getElementById('tstatus').textContent=tunOk?'REMOTE ACCESS (AUTH REQUIRED)':'LOCAL ONLY';
+    document.getElementById('tstatus').className=tunOk?'pill warn':'pill ok';
+    document.getElementById('hdot').className='dot';
+    const killBtn=document.getElementById('killTunBtn');
+    if(killBtn)killBtn.style.display=tunOk?'inline-block':'none';
+    document.getElementById('openDash').removeAttribute('href');
+    if(dev.direct_tunnel_url){
+      document.getElementById('mcpUrlCode').textContent='https://stealthcommander.pages.dev/mcp';
+    }
+
+    const list=j.desktops||[];
+    const liveCount=list.filter(d=>d.state==='live').length;
+    document.getElementById('dcount').textContent=liveCount;
+    document.getElementById('k-desk').textContent=liveCount+' live';
+
+    const clients=j.clients||[];
+    const connCount=clients.filter(c=>c.connected).length;
+    document.getElementById('k-cli').textContent=connCount+' / '+clients.length;
+    document.getElementById('cliTable').innerHTML=clients.map(c=>`<tr>
+      <td><strong>${escapeHtml(c.name)}</strong></td>
+      <td><span class="pill ${c.connected?'ok':'warn'}">${c.connected?'CONNECTED':'NOT CONNECTED'}</span></td>
+      <td style="color:#8b9bb4;font-family:monospace;font-size:11px">${escapeHtml(c.config_path)}</td>
+      <td><button class="sec" onclick="act('sync_clients')">${c.connected?'Re-sync':'Connect'}</button></td>
+    </tr>`).join('');
+
+    const devs=j.devices||[];
+    document.getElementById('devTable').innerHTML=devs.map(d=>`<tr>
+      <td><strong>${escapeHtml(d.name)}</strong></td>
+      <td>${d.kind==='host'?'Windows Host PC':'Hidden Desktop'}</td>
+      <td><span class="pill ${d.online&&!d.needs_reconnect?'ok':'warn'}">${escapeHtml(d.status_text||(d.online?'ONLINE':'NEEDS RECONNECT'))}</span></td>
+      <td style="color:#8b9bb4;font-size:11px">${escapeHtml(d.telemetry||d.endpoint||'—')}</td>
+      <td class="row">
+        <button class="sec" onclick="act('reconnect_device',{device_id:${jsArg(d.id)}})">Reconnect</button>
+        ${d.kind==='host'?`<button class="sec" onclick="act('doctor')">Ping / Doctor</button>`:`<button class="sec" onclick="showTab('live',document.querySelectorAll('.tab')[2])">Live View</button><button class="danger" onclick="act('remove_device',{device_id:${jsArg(d.id)}})">Remove</button>`}
+      </td>
+    </tr>`).join('');
+
+    const u=j.usage||{};
+    document.getElementById('u-calls').textContent=u.total_calls||0;
+    document.getElementById('u-tools').textContent=u.tools_count||10;
+    const evs=u.recent_events||[];
+    document.getElementById('usageTable').innerHTML=evs.length?evs.map(e=>`<tr>
+      <td style="color:#8b9bb4">${escapeHtml(e.time)}</td>
+      <td><strong>${escapeHtml(e.tool)}</strong></td>
+      <td><span class="pill ${e.ok?'ok':'warn'}">${e.ok?'OK':'ERR'}</span></td>
+      <td>${escapeHtml(e.ms)} ms</td>
+      <td style="color:#8b9bb4;font-family:monospace;font-size:11px">${escapeHtml(e.summary||'')}</td>
+    </tr>`).join(''):'<tr><td colspan="5" style="color:#8b9bb4">No recent tool calls recorded yet.</td></tr>';
+
+    const seen=new Set();
+    for(const d of list){
+      seen.add(d.id);
+      let c=cards.get(d.id);
+      if(!c){
+        const node=document.createElement('article');node.className='card';
+        const hd=document.createElement('div');hd.className='card-hd';
+        const title=document.createElement('span');
+        const st=document.createElement('span');st.className='pill ok';
+        hd.append(title,st);
+        const img=document.createElement('img');
+        const meta=document.createElement('div');meta.className='meta';
+        node.append(hd,img,meta);grid.appendChild(node);
+        c={node,title,st,img,meta,streaming:false};
+        img.onerror=()=>{c.streaming=false;};
+        cards.set(d.id,c);
+      }
+      c.title.textContent=d.name;
+      c.st.textContent=d.state;
+
+      if(d.state==='live'&&!c.streaming&&/^[A-Za-z0-9_-]{1,128}$/.test(d.id)){
+        c.streaming=true;
+        try{
+          const frame=await pcRequest('/stream/'+d.id+'.mjpg');
+          const blob=await frame.blob();
+          if(epoch===accountEpoch&&cards.get(d.id)===c){
+            if(c.objectUrl)URL.revokeObjectURL(c.objectUrl);
+            c.objectUrl=URL.createObjectURL(blob);c.img.src=c.objectUrl;
+          }
+        }catch(_){}finally{c.streaming=false;}
+      }
+      const m=d.metrics||{};
+      const cpu=typeof m.cpu_percent==='number'?m.cpu_percent.toFixed(1)+'% CPU':'—';
+      const ram=typeof m.rss_bytes==='number'?Math.round(m.rss_bytes/1048576)+' MB RAM':'—';
+      const fps=typeof m.capture_fps==='number'?Math.round(m.capture_fps)+' FPS':'60 FPS cap';
+      c.meta.innerHTML=`<span>${escapeHtml([cpu,ram,fps,(d.windows?.length||0)+' win'].join(' · '))}</span><button class="danger" onclick="act('remove_device',{device_id:${jsArg(d.id)}})">Stop / Remove</button>`;
+    }
+    for(const [id,c] of cards){if(!seen.has(id)){if(c.objectUrl)URL.revokeObjectURL(c.objectUrl);c.img.src='';c.node.remove();cards.delete(id);}}
+  }catch(_){if(epoch===accountEpoch)document.getElementById('setupBanner').style.display='flex';}
+  finally{polling=false;}
+}
+window.addEventListener('beforeunload',clearPrivateState);
+window.addEventListener('hashchange',()=>{history.replaceState(null,'',location.pathname);});
+initApiBase().then(()=>{if(location.pathname==='/billing')showTab('account',document.getElementById('acctTabBtn'));poll();});setInterval(poll,2500);
+</script></body></html>

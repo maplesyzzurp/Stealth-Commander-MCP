@@ -1,0 +1,14 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "stealth-commander": {
+      "type": "stdio",
+      "command": "python",
+      "args": [
+        "-B",
+        "${PLUGIN_ROOT}/skills/stealth-ghost-delegation/scripts/stealth_commander_mcp.py"
+      ],
+      "cwd": "${PLUGIN_ROOT}"
+    }
+  }
+}

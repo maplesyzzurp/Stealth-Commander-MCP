@@ -1,0 +1,18 @@
+{
+  "name": "stealthcommander-auth-store",
+  "main": "worker.js",
+  "compatibility_date": "2026-07-30",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [],
+  "durable_objects": {
+    "bindings": [{ "name": "STORE", "class_name": "AuthStore" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["AuthStore"] }],
+  "vars": { "OAUTH_MIGRATION_REQUIRED": "true" },
+  "kv_namespaces": [
+    { "binding": "LEGACY_AUTH" },
+    { "binding": "LEGACY_OAUTH" }
+  ],
+  "observability": { "enabled": false }
+}

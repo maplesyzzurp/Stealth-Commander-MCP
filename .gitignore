@@ -1,0 +1,46 @@
+# Local dependencies and generated Python files
+.runtime/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Local IDE settings and automation evidence
+.idea/
+.vscode/
+sessions/
+session-*/
+captures/
+*.capture.json
+smoke-test.json
+worker.log
+watch-*/
+watch.json
+browser-session.json
+dashboard.json
+dashboard-state.json
+observer.log
+desktop-watch-smoke.json
+proof/
+test-project/
+runs/
+*.log
+
+# Local configuration and credentials
+.env
+.env.*
+env.local.json
+credentials.json
+*.pem
+*.key
+
+# Dependencies, workers and private release evidence
+node_modules/
+.wrangler/
+.dev.vars
+build/
+dist/
+*.tgz
+*.zip
+coverage/
+verification-local/

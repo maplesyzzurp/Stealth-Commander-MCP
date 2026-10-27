@@ -1,0 +1,48 @@
+// Example only. Configure approved accounts and random CONTROL_CSRF_SECRET outside git.
+// Enable test billing only after configuring BILLING_CSRF_SECRET and the private test service.
+// OAuth state is stored through AUTH_STORE, not a direct gateway KV binding.
+{
+  "name": "stealth-commander-oauth-gateway",
+  "compatibility_date": "2026-07-30",
+  "compatibility_flags": [
+    "global_fetch_strictly_public"
+  ],
+  "vars": {
+    "GATEWAY_ORIGIN": "https://stealthcommander.pages.dev",
+    "PRIVATE_MODE": "true",
+    "PRIVATE_ACCOUNT_ALLOWLIST": "[]",
+    "LEGACY_MCP_URL_KEYS_ENABLED": "false",
+    "BILLING_TEST_ENABLED": "false",
+    "BILLING_MODE": "test"
+  },
+  "services": [
+    {
+      "binding": "AUTH_STORE",
+      "service": "stealthcommander-auth-store"
+    },
+    {
+      "binding": "AUTH_RATE_LIMITER",
+      "service": "stealthcommander-auth-rate-limit"
+    },
+    {
+      "binding": "REGISTRATION_RATE_LIMITER",
+      "service": "stealthcommander-auth-rate-limit"
+    },
+    {
+      "binding": "BILLING_SERVICE",
+      "service": "stealthcommander-billing-test"
+    }
+  ],
+  "main": "src/index.js",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [],
+  "assets": {
+    "directory": "assets",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  },
+  "observability": {
+    "enabled": false
+  }
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Stealth-Ghost-Delegation"
+  short_description: "Model-agnostic hidden Windows desktop delegation and 60 FPS live dashboard for Antigravity, ChatGPT, Codex, and Droid"
+  default_prompt: "Use $stealth-ghost-delegation to run my task on a separate hidden Windows desktop and show its live captured windows in the dashboard."

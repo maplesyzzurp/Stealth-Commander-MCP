@@ -1,0 +1,21 @@
+{
+  "name": "stealthcommander-billing-candidate",
+  "main": "worker.js",
+  "compatibility_date": "2026-07-30",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [],
+  "vars": {
+    "BILLING_TEST_ENABLED": "false",
+    "BILLING_MODE": "test",
+    "STRIPE_ACCOUNT_ID": "acct_REPLACEWITHTESTACCOUNT",
+    "STRIPE_PRICE_ID": "price_REPLACEWITHTESTPRICE",
+    "STRIPE_PORTAL_CONFIGURATION_ID": "bpc_REPLACEWITHTESTCONFIGURATION",
+    "WEB_ORIGIN": "https://stealthcommander.example.invalid"
+  },
+  "durable_objects": {
+    "bindings": [{ "name": "BILLING", "class_name": "BillingLedger" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["BillingLedger"] }],
+  "observability": { "enabled": false }
+}

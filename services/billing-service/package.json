@@ -1,0 +1,8 @@
+{
+  "name": "stealth-commander-billing-candidate",
+  "version": "0.0.0-private",
+  "private": true,
+  "type": "module",
+  "files": ["worker.js", "wrangler.example.jsonc", "test.mjs", "sandbox-runtime.mjs", "integration-contract.md", "simulation.context.md"],
+  "scripts": { "test": "node --test test.mjs" }
+}

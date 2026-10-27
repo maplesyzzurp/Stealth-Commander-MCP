@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><title>Background order demo</title>
+<style>body{font:20px system-ui;max-width:620px;margin:55px auto;padding:24px;background:#edf2f5;color:#173141}main{background:white;padding:32px;border-radius:14px}label{display:block;margin:18px 0 6px}input,button{font:inherit;padding:10px}button{display:block;margin-top:22px;background:#175d73;color:white;border:0;border-radius:5px}output{display:block;margin-top:24px;font-weight:600}</style>
+<main><h1>Background order demo</h1><p>This local page runs inside the harness-owned browser.</p>
+<form id="order"><label for="item">Item</label><input id="item" required value="Notebook">
+<label for="quantity">Quantity</label><input id="quantity" type="number" min="1" max="100" value="1" required>
+<button type="submit">Calculate total</button></form><output id="result" aria-live="polite">Ready for an order.</output>
+<p>Each item costs $12.50.</p></main>
+<script>document.querySelector('#order').addEventListener('submit',e=>{e.preventDefault();const item=document.querySelector('#item').value.trim();const quantity=Number(document.querySelector('#quantity').value);document.querySelector('#result').textContent=`${quantity} × ${item}: $${(quantity*12.5).toFixed(2)}`;document.querySelector('#result').dataset.state='ready';});</script></html>

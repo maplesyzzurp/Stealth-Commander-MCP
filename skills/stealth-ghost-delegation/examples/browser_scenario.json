@@ -1,0 +1,10 @@
+{
+  "start_url": {"url": "demo"},
+  "actions": [
+    {"step_id": "item", "action": "fill", "locator": {"kind": "css", "selector": "#item"}, "value": {"source": "literal", "value": "Notebook"}},
+    {"step_id": "quantity", "action": "fill", "locator": {"kind": "css", "selector": "#quantity"}, "value": {"source": "literal", "value": "3"}},
+    {"step_id": "calculate", "action": "click", "locator": {"kind": "css", "selector": "button"}},
+    {"step_id": "result", "action": "wait_for", "locator": {"kind": "css", "selector": "#result[data-state='ready']"}, "state": "visible"}
+  ],
+  "capture": {"after_each_step": ["dom", "screenshot"], "at_end": ["dom", "accessibility", "screenshot", "url"], "events": ["console", "page-errors", "network"]}
+}

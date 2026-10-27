@@ -1,0 +1,6 @@
+{
+  "name": "stealth-commander-private-rate-limit-service",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node --test test.mjs" }
+}

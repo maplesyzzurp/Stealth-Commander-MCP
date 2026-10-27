@@ -1,0 +1,67 @@
+name: PC package validation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pc-package-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-tests:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.11', '3.13']
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: ${{ matrix.python }}
+          architecture: x64
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - name: Install hash-locked Windows test prerequisites
+        run: python -m pip --isolated install --only-binary=:all: --require-hashes -r skills/stealth-ghost-delegation/scripts/requirements.txt
+      - name: Launcher tests
+        run: npm test
+      - name: Python unit and synthetic transport tests
+        run: npm run test:python
+      - name: Stdio tool and release contracts
+        run: python -B -m unittest discover -s tests -p test_*.py -v
+      - name: Verify exact npm payload and install-manifest hashes
+        run: npm run verify:package
+
+  hosted-services:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - name: Install gateway dependencies from the lock
+        working-directory: services/oauth-gateway
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Gateway and OAuth contracts
+        working-directory: services/oauth-gateway
+        run: npm test
+      - name: Transactional authorization store
+        working-directory: services/strong-auth-service
+        run: npm test
+      - name: Rate limiter and test billing
+        working-directory: services
+        run: node --test --test-concurrency=1 rate-limit-service/test.mjs billing-service/test.mjs
