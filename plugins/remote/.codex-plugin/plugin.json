@@ -23,7 +23,7 @@
     "logo": "./assets/ninja-mask.png"
   },
   "name": "stealth-commander",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "Connect ChatGPT to a Windows PC that you own and have paired with Stealth Commander.",
   "author": {
     "name": "Nexusmap.ai",
