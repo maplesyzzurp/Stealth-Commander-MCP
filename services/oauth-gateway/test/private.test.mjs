@@ -10,11 +10,11 @@ const email = 'approved@example.test';
 const password = 'synthetic-long-password';
 const user = { email, name: 'Synthetic', api_key: 'sc_live_' + 'a'.repeat(40), salt: 'a'.repeat(32), devices: [], created_at: '2026-10-25T12:00:00.000Z' };
 user.hash = await hashPassword(password, user.salt);
-async function fixture(allowlist, bindings = {}, assets = () => new Response('PRIVATE_DASHBOARD_SOURCE')) {
+async function fixture(allowlist, bindings = {}, assets = request => new Response(new URL(request.url).pathname === '/landing' ? 'PUBLIC_LANDING_SOURCE' : 'PRIVATE_DASHBOARD_SOURCE')) {
   const mf = new Miniflare({ workers: [{ name: 'gateway', modules: true, scriptPath: 'build/worker.js', compatibilityDate: '2026-07-30', compatibilityFlags: ['global_fetch_strictly_public'], bindings: { GATEWAY_ORIGIN: origin, PRIVATE_MODE: 'true', ...(allowlist === undefined ? {} : { PRIVATE_ACCOUNT_ALLOWLIST: allowlist }), CONTROL_CSRF_SECRET: 'synthetic-control-secret-at-least-32-chars', BILLING_TEST_ENABLED: 'true', BILLING_MODE: 'test', ...bindings }, serviceBindings: { AUTH_STORE: 'auth', BILLING_SERVICE: () => Response.json({ received: true }), ASSETS: assets, AUTH_RATE_LIMITER: () => Response.json({ success: true }), REGISTRATION_RATE_LIMITER: () => Response.json({ success: true }) }, outboundService() { throw new Error('No external network.'); } }, { name: 'auth', modules: true, script: readFileSync(new URL('../../strong-auth-service/worker.js', import.meta.url), 'utf8'), compatibilityDate: '2026-07-30', durableObjects: { STORE: { className: 'AuthStore', useSQLite: true } }, kvNamespaces: ['LEGACY_AUTH'] }] });
   const store = authStore(await mf.getWorker('auth')); await store.initialize();
   await store.put('user:' + email, JSON.stringify(user)); await store.put('apikey:' + user.api_key, email);
-  const call = (path, body, cookie) => mf.dispatchFetch(origin + path, { method: body ? 'POST' : 'GET', headers: { Origin: origin, 'CF-Connecting-IP': '192.0.2.8', ...(body ? { 'Content-Type': 'application/json' } : {}), ...(cookie ? { Cookie: cookie } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
+  const call = (path, body, cookie) => mf.dispatchFetch(origin + path, { method: body ? 'POST' : 'GET', redirect: 'manual', headers: { Origin: origin, 'CF-Connecting-IP': '192.0.2.8', ...(body ? { 'Content-Type': 'application/json' } : {}), ...(cookie ? { Cookie: cookie } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
   const outsider = { ...user, email: 'outsider@example.test', api_key: 'sc_live_' + 'b'.repeat(40), devices: [{ device_id: 'outside-pc', mcp_url: 'https://outside-pc.trycloudflare.com/' + 'x'.repeat(48) + '/mcp', oauth_pair_id: 'pair', device_credential_hash: createHash('sha256').update('sc_dev_' + 'c'.repeat(48)).digest('hex') }] };
   await store.put('user:' + outsider.email, JSON.stringify(outsider));
   await store.put('apikey:' + outsider.api_key, outsider.email);
@@ -26,13 +26,19 @@ async function fixture(allowlist, bindings = {}, assets = () => new Response('PR
 test('private mode never serves the dashboard, downloads, registry or fallback aliases anonymously', async () => {
   const f = await fixture(JSON.stringify([email]));
   try {
-    const signin = await f.call('/'); assert.equal(signin.status, 200); const source = await signin.text();
-    assert.match(source, /Private testing/); assert.ok(!source.includes('PRIVATE_DASHBOARD_SOURCE'));
+    const landing = await f.call('/'); assert.equal(landing.status, 200); assert.equal(await landing.text(), 'PUBLIC_LANDING_SOURCE');
+    const signin = await f.call('/sign-in'); assert.equal(signin.status, 200); const source = await signin.text();
+    assert.match(source, /approved Stealth Commander account/); assert.ok(!source.includes('PRIVATE_DASHBOARD_SOURCE'));
+    const dashboard = await f.call('/dashboard'); assert.equal(dashboard.status, 303); assert.equal(dashboard.headers.get('Location'), '/sign-in');
     for (const path of ['/index.html', '/download/installer.zip', '/registry.json', '/oauth/unknown', '/.well-known/unknown']) { const r = await f.call(path); assert.equal(r.status, 403); assert.ok(!(await r.text()).includes('PRIVATE_DASHBOARD_SOURCE')); }
     assert.equal((await f.call('/.well-known/oauth-authorization-server')).status, 200);
     const login = await f.call('/api/auth/login', { email, password }); assert.equal(login.status, 200);
     const cookie = login.headers.get('Set-Cookie').split(';')[0];
-    assert.equal(await (await f.call('/', null, cookie)).text(), 'PRIVATE_DASHBOARD_SOURCE');
+    const authenticatedDashboard = await f.call('/dashboard', null, cookie);
+    assert.equal(await authenticatedDashboard.text(), 'PRIVATE_DASHBOARD_SOURCE');
+    assert.equal(authenticatedDashboard.headers.get('Cache-Control'), 'private, no-store');
+    assert.equal(authenticatedDashboard.headers.get('Vary'), 'Cookie');
+    assert.equal(await (await f.call('/', null, cookie)).text(), 'PUBLIC_LANDING_SOURCE');
     assert.equal((await f.call('/api/account/session', null, cookie)).status, 200);
     assert.equal((await f.call('/api/auth/register', { email: 'outsider@example.test', password })).status, 403);
     assert.equal((await f.call('/api/auth/login', { email: 'outsider@example.test', password })).status, 401);
@@ -95,20 +101,21 @@ test('missing or malformed domain challenges fail closed', async () => {
 
 test('only exact informational routes and the original icon are public', async () => {
   const assetRequests = [];
-  const publicPaths = ['/about', '/support', '/icon.png'];
+  const publicPaths = ['/', '/about', '/support', '/icon.png'];
+  const assetPaths = ['/landing', '/about', '/support', '/icon.png'];
   const f = await fixture(JSON.stringify([email]), {}, request => {
     const path = new URL(request.url).pathname;
     assetRequests.push({ path, method: request.method });
     assert.equal(request.headers.get('Cookie'), null);
     assert.equal(request.headers.get('Authorization'), null);
-    assert.ok(publicPaths.includes(path));
+    assert.ok(assetPaths.includes(path));
     return new Response(request.method === 'HEAD' ? null : 'PUBLIC_ASSET:' + path, { headers: { 'Content-Type': path === '/icon.png' ? 'image/png' : 'text/html; charset=utf-8', 'Set-Cookie': 'must-not-reach-client=1' } });
   });
   try {
     for (const path of publicPaths) {
       const get = await f.mf.dispatchFetch(origin + path, { headers: { Cookie: 'sc_session=synthetic', Authorization: 'Bearer synthetic' } });
       assert.equal(get.status, 200);
-      assert.equal(await get.text(), 'PUBLIC_ASSET:' + path);
+      assert.equal(await get.text(), 'PUBLIC_ASSET:' + (path === '/' ? '/landing' : path));
       assert.equal(get.headers.get('Cache-Control'), 'public, max-age=300');
       assert.equal(get.headers.get('Set-Cookie'), null);
       assert.equal(get.headers.get('X-Frame-Options'), 'DENY');
@@ -123,15 +130,15 @@ test('only exact informational routes and the original icon are public', async (
       }
       assert.equal((await f.call(path + '?ignored=1')).status, 404);
     }
-    assert.deepEqual(assetRequests, publicPaths.flatMap(path => [{ path, method: 'GET' }, { path, method: 'HEAD' }]));
-    for (const path of ['/about.html', '/support.html', '/about/', '/support/', '/icon.png/', '/index.html', '/download/installer.zip', '/registry.json']) {
+    assert.deepEqual(assetRequests, assetPaths.flatMap(path => [{ path, method: 'GET' }, { path, method: 'HEAD' }]));
+    for (const path of ['/landing', '/landing.html', '/about.html', '/support.html', '/about/', '/support/', '/icon.png/', '/index.html', '/download/installer.zip', '/registry.json']) {
       const denied = await f.call(path);
       assert.equal(denied.status, 403);
       assert.ok(!(await denied.text()).includes('PUBLIC_ASSET'));
     }
-    const signin = await f.call('/');
+    const signin = await f.call('/sign-in');
     assert.equal(signin.status, 200);
-    assert.match(await signin.text(), /Private testing/);
+    assert.match(await signin.text(), /approved Stealth Commander account/);
     assert.equal((await f.call('/mcp')).status, 401);
     assert.equal((await f.call('/api/account/session')).status, 401);
     assert.equal((await f.call('/api/device/control', { device_id: 'outside-pc', path: '/meta', method: 'GET' })).status, 401);
@@ -152,11 +159,63 @@ test('informational asset redirects and missing files fail closed', async () => 
   } finally { await f.mf.dispose(); }
 });
 
+test('public pages and sign-in remain readable during account-store failure while private routes fail closed', async () => {
+  for (const unavailableStore of [undefined, () => Response.json({ error: 'synthetic unavailable storage' }, { status: 503 })]) {
+    const mf = new Miniflare({ modules: true, scriptPath: 'build/worker.js', compatibilityDate: '2026-07-30', compatibilityFlags: ['global_fetch_strictly_public'], bindings: { GATEWAY_ORIGIN: origin, PRIVATE_MODE: 'true', PRIVATE_ACCOUNT_ALLOWLIST: JSON.stringify([email]) }, serviceBindings: {
+      ...(unavailableStore ? { AUTH_STORE: unavailableStore } : {}),
+      ASSETS: request => new Response('PUBLIC_ASSET:' + new URL(request.url).pathname)
+    }, outboundService() { throw new Error('No external network.'); } });
+    try {
+      for (const path of ['/', '/about', '/support', '/sign-in']) assert.equal((await mf.dispatchFetch(origin + path)).status, 200);
+      for (const path of ['/dashboard', '/index.html', '/api/auth/me', '/mcp']) assert.equal((await mf.dispatchFetch(origin + path)).status, 503);
+      assert.equal((await mf.dispatchFetch(origin + '/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).status, 503);
+    } finally { await mf.dispose(); }
+  }
+});
+
+test('dashboard maps the existing index only after session approval and sign-in has no redirect parameters', async () => {
+  const assetRequests = [];
+  const f = await fixture(JSON.stringify([email]), {}, request => {
+    assetRequests.push(new URL(request.url).pathname);
+    assert.equal(new URL(request.url).pathname, '/');
+    assert.equal(request.headers.get('Cookie'), null);
+    assert.equal(request.headers.get('Authorization'), null);
+    return new Response(request.method === 'HEAD' ? null : 'PRIVATE_DASHBOARD_SOURCE', { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+  });
+  try {
+    for (const cookie of [undefined, 'sc_session=invalid', 'sc_session=' + f.outsiderSession]) {
+      const denied = await f.call('/dashboard', null, cookie);
+      assert.equal(denied.status, 303);
+      assert.equal(denied.headers.get('Location'), '/sign-in');
+      assert.equal(denied.headers.get('Cache-Control'), 'no-store');
+      assert.equal(await denied.text(), '');
+    }
+    assert.equal(assetRequests.length, 0);
+    const login = await f.call('/api/auth/login', { email, password }); assert.equal(login.status, 200);
+    const cookie = login.headers.get('Set-Cookie').split(';')[0];
+    const dashboard = await f.call('/dashboard', null, cookie);
+    assert.equal(dashboard.status, 200); assert.equal(await dashboard.text(), 'PRIVATE_DASHBOARD_SOURCE');
+    const head = await f.mf.dispatchFetch(origin + '/dashboard', { method: 'HEAD', headers: { Cookie: cookie } });
+    assert.equal(head.status, 200); assert.equal(await head.text(), '');
+    assert.deepEqual(assetRequests, ['/', '/']);
+    for (const path of ['/sign-in', '/dashboard']) {
+      assert.equal((await f.call(path, {})).status, 405);
+      assert.equal((await f.call(path + '?next=https://outside.example/')).status, 404);
+    }
+    const signInHead = await f.mf.dispatchFetch(origin + '/sign-in', { method: 'HEAD' });
+    assert.equal(signInHead.status, 200); assert.equal(await signInHead.text(), '');
+    for (const alias of ['/sign-in/', '/sign-in.html', '/dashboard/', '/dashboard.html']) assert.equal((await f.call(alias)).status, 403);
+    assert.equal((await f.call('/api/auth/logout', {}, cookie)).status, 200);
+    assert.equal((await f.call('/dashboard', null, cookie)).status, 303);
+  } finally { await f.mf.dispose(); }
+});
+
 
 test('previously valid nonallowlisted sessions, API keys and PC credentials cannot enter private control or consent', async () => {
   const f = await fixture(JSON.stringify([email]));
   try {
     const cookie = 'sc_session=' + f.outsiderSession;
+    assert.equal((await f.call('/dashboard', null, cookie)).status, 303);
     assert.equal((await f.call('/index.html', null, cookie)).status, 403);
     assert.equal((await f.call('/api/account/session', null, cookie)).status, 401);
     assert.equal((await f.call('/api/device/control', { device_id: 'outside-pc', path: '/meta', method: 'GET' }, cookie)).status, 401);

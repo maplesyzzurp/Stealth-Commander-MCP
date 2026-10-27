@@ -4,10 +4,11 @@ import { UPSTREAM_TIMEOUT_MS } from './limits.js';
 import { blockedToolResponse, publicMcpResponse } from './public-mcp.js';
 import { authStore } from './auth-store.js';
 import { handleBilling } from './billing.js';
+import { signInPage } from './sign-in-page.js';
 
 const CONTROL = 'pc:control';
 const SESSION_SECONDS = 43200;
-const PUBLIC_INFORMATION_PATHS = new Set(['/about', '/support', '/icon.png']);
+const PUBLIC_INFORMATION_PATHS = new Map([['/', '/landing'], ['/about', '/about'], ['/support', '/support'], ['/icon.png', '/icon.png']]);
 const htmlEscape = value => String(value).replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
 const digest = async value => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))), b => b.toString(16).padStart(2, '0')).join('');
 const json = (status, error, headers = {}) => Response.json({ error }, { status, headers: { 'Cache-Control': 'no-store', ...headers } });
@@ -289,10 +290,6 @@ async function deviceControl(request, env, signedIn) {
   finally { controller.abort(); clearTimeout(timer); }
 }
 
-function privateSignIn() {
-  return new Response('<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Stealth Commander private access</title><h1>Stealth Commander</h1><p>Private testing. Sign in with an approved account.</p><form id="signin"><p><label>Email <input name="email" type="email" required autocomplete="username"></label></p><p><label>Password <input name="password" type="password" required autocomplete="current-password"></label></p><button>Sign in</button><p id="result" role="status"></p></form><script>document.getElementById("signin").addEventListener("submit",async e=>{e.preventDefault();const f=new FormData(e.target);try{const r=await fetch("/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:f.get("email"),password:f.get("password")})});if(r.ok)location.reload();else document.getElementById("result").textContent="Sign-in failed."}catch{document.getElementById("result").textContent="Sign-in unavailable."}})</script></html>', { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Content-Security-Policy': "default-src 'none'; script-src 'unsafe-inline'; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'", 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer' } });
-}
-
 function provider(env) {
   return new OAuthProvider({
     apiRoute: '/mcp', apiHandler,
@@ -321,8 +318,7 @@ function provider(env) {
 
 export default {
   async fetch(request, env, ctx) {
-    if (typeof env.AUTH_STORE?.fetch !== 'function' || !env.ASSETS || !env.GATEWAY_ORIGIN) return json(503, 'Gateway is not configured.');
-    env = { ...env, STEALTH_AUTH: authStore(env.AUTH_STORE), OAUTH_KV: authStore(env.AUTH_STORE, 'oauth:', true) };
+    if (!env.ASSETS || !env.GATEWAY_ORIGIN) return json(503, 'Gateway is not configured.');
     if (new URL(request.url).origin !== env.GATEWAY_ORIGIN) return json(421, 'Gateway origin does not match.');
     const path = new URL(request.url).pathname;
     if (path === '/.well-known/openai-apps-challenge') {
@@ -337,7 +333,8 @@ export default {
         if (new URL(request.url).search) return json(404, 'Public page not found.');
         if (request.method !== 'GET' && request.method !== 'HEAD') return json(405, 'Method is not supported.', { Allow: 'GET, HEAD' });
         // Preserve clean URLs for Cloudflare's HTML handling; forward no account credentials.
-        const asset = await env.ASSETS.fetch(new Request(request.url, { method: request.method, redirect: 'manual' }));
+        const assetUrl = new URL(PUBLIC_INFORMATION_PATHS.get(path), request.url);
+        const asset = await env.ASSETS.fetch(new Request(assetUrl, { method: request.method, redirect: 'manual' }));
         if (asset.status !== 200) return json(404, 'Public page not found.');
         const headers = new Headers(asset.headers);
         headers.delete('Set-Cookie');
@@ -348,7 +345,28 @@ export default {
         headers.set('X-Frame-Options', 'DENY');
         return new Response(request.method === 'HEAD' ? null : asset.body, { status: 200, headers });
       }
+      if (path === '/sign-in') {
+        if (new URL(request.url).search) return json(404, 'Page not found.');
+        if (request.method !== 'GET' && request.method !== 'HEAD') return json(405, 'Method is not supported.', { Allow: 'GET, HEAD' });
+        return signInPage(request.method);
+      }
+      if (typeof env.AUTH_STORE?.fetch !== 'function') return json(503, 'Gateway is not configured.');
+      env = { ...env, STEALTH_AUTH: authStore(env.AUTH_STORE), OAUTH_KV: authStore(env.AUTH_STORE, 'oauth:', true) };
       await env.STEALTH_AUTH.initialize();
+      if (path === '/dashboard') {
+        if (new URL(request.url).search) return json(404, 'Page not found.');
+        if (request.method !== 'GET' && request.method !== 'HEAD') return json(405, 'Method is not supported.', { Allow: 'GET, HEAD' });
+        if (!await account(request, env)) return new Response(null, { status: 303, headers: { Location: '/sign-in', 'Cache-Control': 'no-store', Vary: 'Cookie' } });
+        // The existing index remains private; fetch its canonical asset URL only after session verification.
+        const asset = await env.ASSETS.fetch(new Request(new URL('/', request.url), { method: request.method, redirect: 'manual' }));
+        if (asset.status !== 200) return json(503, 'Dashboard is temporarily unavailable.');
+        const headers = new Headers(asset.headers);
+        headers.delete('Set-Cookie');
+        headers.set('Cache-Control', 'private, no-store');
+        headers.set('Vary', 'Cookie');
+        headers.set('X-Content-Type-Options', 'nosniff');
+        return new Response(request.method === 'HEAD' ? null : asset.body, { status: 200, headers });
+      }
       if (path.startsWith('/api/billing/')) {
         const billing = await handleBilling(request, env, path === '/api/billing/webhook' ? null : await account(request, env));
         if (billing) return billing;
@@ -361,7 +379,7 @@ export default {
       if (path === '/api/device/control') return await deviceControl(request, env, await account(request, env));
       const publicProtocol = ['/authorize', '/mcp', '/oauth/token', '/oauth/register', '/.well-known/oauth-authorization-server', '/.well-known/oauth-protected-resource/mcp'].includes(path);
       if (String(env.PRIVATE_MODE).toLowerCase() === 'true' && !path.startsWith('/api/') && !publicProtocol) {
-        if (!await account(request, env)) return path === '/' && request.method === 'GET' ? privateSignIn() : json(403, 'Private sign-in is required.');
+        if (!await account(request, env)) return json(403, 'Private sign-in is required.');
         const asset = await env.ASSETS.fetch(request), headers = new Headers(asset.headers);
         headers.set('Cache-Control', 'private, no-store');
         headers.set('Vary', 'Cookie');
