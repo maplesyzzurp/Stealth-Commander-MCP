@@ -87,7 +87,7 @@ class InstallerTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(dir=os.environ.get('STEALTH_TEST_TMP'))
         self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
+        self.root = Path(self.temp.name).resolve()
         self.home = self.root / 'profile'
         self.home.mkdir()
         source = Path(__file__).resolve().parent.parent

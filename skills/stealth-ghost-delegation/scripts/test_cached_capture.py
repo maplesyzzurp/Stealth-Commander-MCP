@@ -27,7 +27,7 @@ class Fixture(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
-        self.root = Path(self.tmp.name)
+        self.root = Path(self.tmp.name).resolve()
         (self.root / "captures").mkdir()
         self.now = time.time()
         self.identity = ["PyCharmHarness_Synthetic", 101, self.now - 100, str(self.root / "anchor.exe")]
