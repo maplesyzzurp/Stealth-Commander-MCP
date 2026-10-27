@@ -33,7 +33,9 @@ jobs:
         with:
           node-version: '22'
       - name: Install hash-locked Windows test prerequisites
-        run: python -m pip --isolated install --only-binary=:all: --require-hashes -r skills/stealth-ghost-delegation/scripts/requirements.txt
+        run: >-
+          python -m pip --isolated install --only-binary=:all: --require-hashes
+          -r skills/stealth-ghost-delegation/scripts/requirements.txt
       - name: Launcher tests
         run: npm test
       - name: Python unit and synthetic transport tests
