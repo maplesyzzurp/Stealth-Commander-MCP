@@ -7,6 +7,7 @@ import { handleBilling } from './billing.js';
 
 const CONTROL = 'pc:control';
 const SESSION_SECONDS = 43200;
+const PUBLIC_INFORMATION_PATHS = new Set(['/about', '/support', '/icon.png']);
 const htmlEscape = value => String(value).replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
 const digest = async value => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))), b => b.toString(16).padStart(2, '0')).join('');
 const json = (status, error, headers = {}) => Response.json({ error }, { status, headers: { 'Cache-Control': 'no-store', ...headers } });
@@ -324,8 +325,29 @@ export default {
     env = { ...env, STEALTH_AUTH: authStore(env.AUTH_STORE), OAUTH_KV: authStore(env.AUTH_STORE, 'oauth:', true) };
     if (new URL(request.url).origin !== env.GATEWAY_ORIGIN) return json(421, 'Gateway origin does not match.');
     const path = new URL(request.url).pathname;
+    if (path === '/.well-known/openai-apps-challenge') {
+      const challenge = env.OPENAI_APPS_CHALLENGE;
+      if (new URL(request.url).search || typeof challenge !== 'string' || !challenge.length || challenge.length > 4096 || /[^\x21-\x7e]/.test(challenge)) return json(404, 'Verification challenge is not configured.');
+      if (request.method !== 'GET' && request.method !== 'HEAD') return json(405, 'Method is not supported.', { Allow: 'GET, HEAD' });
+      return new Response(request.method === 'HEAD' ? null : challenge, { headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
+    }
     if (path === '/mcp' && request.headers.get('Origin') && request.headers.get('Origin') !== env.GATEWAY_ORIGIN) return json(403, 'Origin is not allowed.');
     try {
+      if (PUBLIC_INFORMATION_PATHS.has(path)) {
+        if (new URL(request.url).search) return json(404, 'Public page not found.');
+        if (request.method !== 'GET' && request.method !== 'HEAD') return json(405, 'Method is not supported.', { Allow: 'GET, HEAD' });
+        // Preserve clean URLs for Cloudflare's HTML handling; forward no account credentials.
+        const asset = await env.ASSETS.fetch(new Request(request.url, { method: request.method, redirect: 'manual' }));
+        if (asset.status !== 200) return json(404, 'Public page not found.');
+        const headers = new Headers(asset.headers);
+        headers.delete('Set-Cookie');
+        headers.set('Cache-Control', 'public, max-age=300');
+        headers.set('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; form-action 'none'; frame-ancestors 'none'; base-uri 'none'");
+        headers.set('Referrer-Policy', 'no-referrer');
+        headers.set('X-Content-Type-Options', 'nosniff');
+        headers.set('X-Frame-Options', 'DENY');
+        return new Response(request.method === 'HEAD' ? null : asset.body, { status: 200, headers });
+      }
       await env.STEALTH_AUTH.initialize();
       if (path.startsWith('/api/billing/')) {
         const billing = await handleBilling(request, env, path === '/api/billing/webhook' ? null : await account(request, env));

@@ -22,6 +22,12 @@ AUTH_STORE, AUTH_RATE_LIMITER and REGISTRATION_RATE_LIMITER must be private serv
 
 BILLING_TEST_ENABLED defaults false and BILLING_MODE remains test. The billing worker accepts test credentials only and always returns accessAllowed=false. No production payment/access entitlement is implemented by this test service.
 
+## Public directory domain verification
+
+When the submission portal provides a domain challenge, configure its exact token as OPENAI_APPS_CHALLENGE in the gateway deployment settings, outside the repository and plugin archive. The gateway serves that single token as plain text at /.well-known/openai-apps-challenge for GET and HEAD requests, including when PRIVATE_MODE=true. Missing or malformed tokens return 404; no other route becomes public. The handler does not change account access, OAuth consent, PC pairing, or the private dashboard. Keep a challenge already used by another plugin intact; use the portal's permitted alternate host or parent domain instead of replacing it.
+
+The informational /about and /support pages and the original /icon.png are independently public for GET and HEAD requests. The pages use Cloudflare's default clean-URL handling to serve assets/about.html and assets/support.html; raw .html aliases, trailing-slash variants, and other assets remain protected in private mode. Do not configure SPA fallback or force trailing slashes for these assets. The public pages do not receive account credentials, run scripts, submit forms, or expose the dashboard. Deploy the two page files and route handler together.
+
 ## Legacy client migration
 
 Universal OAuth /mcp remains the preferred external connection. Account sign-in, pairing, owner sessions and Authorization-header compatibility remain available; this change does not rotate credentials or alter the production deployment.

@@ -10,8 +10,8 @@ const email = 'approved@example.test';
 const password = 'synthetic-long-password';
 const user = { email, name: 'Synthetic', api_key: 'sc_live_' + 'a'.repeat(40), salt: 'a'.repeat(32), devices: [], created_at: '2026-10-25T12:00:00.000Z' };
 user.hash = await hashPassword(password, user.salt);
-async function fixture(allowlist) {
-  const mf = new Miniflare({ workers: [{ name: 'gateway', modules: true, scriptPath: 'build/worker.js', compatibilityDate: '2026-07-30', compatibilityFlags: ['global_fetch_strictly_public'], bindings: { GATEWAY_ORIGIN: origin, PRIVATE_MODE: 'true', ...(allowlist === undefined ? {} : { PRIVATE_ACCOUNT_ALLOWLIST: allowlist }), CONTROL_CSRF_SECRET: 'synthetic-control-secret-at-least-32-chars', BILLING_TEST_ENABLED: 'true', BILLING_MODE: 'test' }, serviceBindings: { AUTH_STORE: 'auth', BILLING_SERVICE: () => Response.json({ received: true }), ASSETS: () => new Response('PRIVATE_DASHBOARD_SOURCE'), AUTH_RATE_LIMITER: () => Response.json({ success: true }), REGISTRATION_RATE_LIMITER: () => Response.json({ success: true }) }, outboundService() { throw new Error('No external network.'); } }, { name: 'auth', modules: true, script: readFileSync(new URL('../../strong-auth-service/worker.js', import.meta.url), 'utf8'), compatibilityDate: '2026-07-30', durableObjects: { STORE: { className: 'AuthStore', useSQLite: true } }, kvNamespaces: ['LEGACY_AUTH'] }] });
+async function fixture(allowlist, bindings = {}, assets = () => new Response('PRIVATE_DASHBOARD_SOURCE')) {
+  const mf = new Miniflare({ workers: [{ name: 'gateway', modules: true, scriptPath: 'build/worker.js', compatibilityDate: '2026-07-30', compatibilityFlags: ['global_fetch_strictly_public'], bindings: { GATEWAY_ORIGIN: origin, PRIVATE_MODE: 'true', ...(allowlist === undefined ? {} : { PRIVATE_ACCOUNT_ALLOWLIST: allowlist }), CONTROL_CSRF_SECRET: 'synthetic-control-secret-at-least-32-chars', BILLING_TEST_ENABLED: 'true', BILLING_MODE: 'test', ...bindings }, serviceBindings: { AUTH_STORE: 'auth', BILLING_SERVICE: () => Response.json({ received: true }), ASSETS: assets, AUTH_RATE_LIMITER: () => Response.json({ success: true }), REGISTRATION_RATE_LIMITER: () => Response.json({ success: true }) }, outboundService() { throw new Error('No external network.'); } }, { name: 'auth', modules: true, script: readFileSync(new URL('../../strong-auth-service/worker.js', import.meta.url), 'utf8'), compatibilityDate: '2026-07-30', durableObjects: { STORE: { className: 'AuthStore', useSQLite: true } }, kvNamespaces: ['LEGACY_AUTH'] }] });
   const store = authStore(await mf.getWorker('auth')); await store.initialize();
   await store.put('user:' + email, JSON.stringify(user)); await store.put('apikey:' + user.api_key, email);
   const call = (path, body, cookie) => mf.dispatchFetch(origin + path, { method: body ? 'POST' : 'GET', headers: { Origin: origin, 'CF-Connecting-IP': '192.0.2.8', ...(body ? { 'Content-Type': 'application/json' } : {}), ...(cookie ? { Cookie: cookie } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
@@ -50,6 +50,106 @@ test('missing, empty, malformed and non-normalized private allowlists fail close
       assert.equal((await f.call('/index.html')).status, 403);
     } finally { await f.mf.dispose(); }
   }
+});
+
+test('domain verification serves only the configured challenge without opening private routes', async () => {
+  const challenge = 'synthetic-review-challenge';
+  const f = await fixture(JSON.stringify([email]), { OPENAI_APPS_CHALLENGE: challenge });
+  try {
+    const response = await f.call('/.well-known/openai-apps-challenge');
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('Content-Type'), 'text/plain; charset=utf-8');
+    assert.equal(response.headers.get('Cache-Control'), 'no-store');
+    assert.equal(response.headers.get('X-Content-Type-Options'), 'nosniff');
+    assert.equal(await response.text(), challenge);
+    const head = await f.mf.dispatchFetch(origin + '/.well-known/openai-apps-challenge', { method: 'HEAD' });
+    assert.equal(head.status, 200);
+    assert.equal(await head.text(), '');
+    const post = await f.call('/.well-known/openai-apps-challenge', {});
+    assert.equal(post.status, 405);
+    assert.equal(post.headers.get('Allow'), 'GET, HEAD');
+    assert.equal((await f.call('/.well-known/openai-apps-challenge?token=ignored')).status, 404);
+    for (const path of ['/.well-known/openai-apps-challenge/', '/.well-known/unknown', '/index.html']) {
+      const denied = await f.call(path);
+      assert.equal(denied.status, 403);
+      const body = await denied.text();
+      assert.ok(!body.includes(challenge));
+      assert.ok(!body.includes('PRIVATE_DASHBOARD_SOURCE'));
+    }
+    assert.equal((await f.call('/mcp')).status, 401);
+    assert.equal((await f.call('/api/account/session')).status, 401);
+    assert.equal((await f.call('/api/auth/register', { email: 'outsider@example.test', password })).status, 403);
+  } finally { await f.mf.dispose(); }
+});
+
+test('missing or malformed domain challenges fail closed', async () => {
+  for (const challenge of [undefined, '', 'line\nbreak', ' padded ', 123, 'a'.repeat(4097)]) {
+    const f = await fixture(JSON.stringify([email]), challenge === undefined ? {} : { OPENAI_APPS_CHALLENGE: challenge });
+    try {
+      const response = await f.call('/.well-known/openai-apps-challenge');
+      assert.equal(response.status, 404);
+      assert.deepEqual(await response.json(), { error: 'Verification challenge is not configured.' });
+    } finally { await f.mf.dispose(); }
+  }
+});
+
+test('only exact informational routes and the original icon are public', async () => {
+  const assetRequests = [];
+  const publicPaths = ['/about', '/support', '/icon.png'];
+  const f = await fixture(JSON.stringify([email]), {}, request => {
+    const path = new URL(request.url).pathname;
+    assetRequests.push({ path, method: request.method });
+    assert.equal(request.headers.get('Cookie'), null);
+    assert.equal(request.headers.get('Authorization'), null);
+    assert.ok(publicPaths.includes(path));
+    return new Response(request.method === 'HEAD' ? null : 'PUBLIC_ASSET:' + path, { headers: { 'Content-Type': path === '/icon.png' ? 'image/png' : 'text/html; charset=utf-8', 'Set-Cookie': 'must-not-reach-client=1' } });
+  });
+  try {
+    for (const path of publicPaths) {
+      const get = await f.mf.dispatchFetch(origin + path, { headers: { Cookie: 'sc_session=synthetic', Authorization: 'Bearer synthetic' } });
+      assert.equal(get.status, 200);
+      assert.equal(await get.text(), 'PUBLIC_ASSET:' + path);
+      assert.equal(get.headers.get('Cache-Control'), 'public, max-age=300');
+      assert.equal(get.headers.get('Set-Cookie'), null);
+      assert.equal(get.headers.get('X-Frame-Options'), 'DENY');
+      assert.match(get.headers.get('Content-Security-Policy'), /default-src 'none'/);
+      const head = await f.mf.dispatchFetch(origin + path, { method: 'HEAD' });
+      assert.equal(head.status, 200);
+      assert.equal(await head.text(), '');
+      for (const method of ['POST', 'PUT', 'DELETE', 'OPTIONS']) {
+        const denied = await f.mf.dispatchFetch(origin + path, { method });
+        assert.equal(denied.status, 405);
+        assert.equal(denied.headers.get('Allow'), 'GET, HEAD');
+      }
+      assert.equal((await f.call(path + '?ignored=1')).status, 404);
+    }
+    assert.deepEqual(assetRequests, publicPaths.flatMap(path => [{ path, method: 'GET' }, { path, method: 'HEAD' }]));
+    for (const path of ['/about.html', '/support.html', '/about/', '/support/', '/icon.png/', '/index.html', '/download/installer.zip', '/registry.json']) {
+      const denied = await f.call(path);
+      assert.equal(denied.status, 403);
+      assert.ok(!(await denied.text()).includes('PUBLIC_ASSET'));
+    }
+    const signin = await f.call('/');
+    assert.equal(signin.status, 200);
+    assert.match(await signin.text(), /Private testing/);
+    assert.equal((await f.call('/mcp')).status, 401);
+    assert.equal((await f.call('/api/account/session')).status, 401);
+    assert.equal((await f.call('/api/device/control', { device_id: 'outside-pc', path: '/meta', method: 'GET' })).status, 401);
+  } finally { await f.mf.dispose(); }
+});
+
+test('informational asset redirects and missing files fail closed', async () => {
+  const f = await fixture(JSON.stringify([email]), {}, request => new URL(request.url).pathname === '/about'
+    ? Response.redirect(origin + '/about', 307)
+    : new Response('missing', { status: 404 }));
+  try {
+    for (const path of ['/about', '/support']) {
+      const response = await f.call(path);
+      assert.equal(response.status, 404);
+      assert.equal(response.headers.get('Location'), null);
+      assert.deepEqual(await response.json(), { error: 'Public page not found.' });
+    }
+  } finally { await f.mf.dispose(); }
 });
 
 
