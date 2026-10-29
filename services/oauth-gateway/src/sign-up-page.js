@@ -3,35 +3,35 @@ const document = String.raw`<!doctype html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#080b0b">
+  <meta name="theme-color" content="#09060f">
   <title>Create an account | Stealth Commander</title>
   <link rel="icon" type="image/png" href="/icon.png">
   <style>
-    :root { --bg: #080b0b; --panel: #101615; --border: #293632; --text: #e9f1ed; --muted: #98aaa1; --accent: #93e5bb; color-scheme: dark; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
+    :root { --bg: #09060f; --panel: #110c19; --border: #32243e; --text: #f4effa; --muted: #aca1bd; --accent: #a855f7; --magenta: #ec4899; color-scheme: dark; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
     * { box-sizing: border-box; }
-    body { margin: 0; min-height: 100vh; font-size: 16px; line-height: 1.6; }
+    body { background: radial-gradient(ellipse at 50% 28%, #a855f70b, transparent 55%), var(--bg); margin: 0; min-height: 100vh; font-size: 16px; line-height: 1.6; }
     a { color: var(--accent); text-underline-offset: .22em; }
-    a:hover { color: #b2f1d0; }
+    a:hover { color: #d8b4fe; }
     a:focus-visible, button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
     .shell { width: min(1104px, calc(100% - 40px)); margin-inline: auto; }
-    header { border-bottom: 1px solid var(--border); }
+    header { border-bottom: 1px solid var(--border); background: #0d0913; }
     .header-inner { min-height: 88px; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
     .brand { display: inline-flex; align-items: center; gap: 12px; color: var(--text); text-decoration: none; font-size: 15px; font-weight: 650; }
-    .brand img { width: 40px; height: 40px; padding: 5px; border-radius: 8px; background: #edf2ef; }
+    .brand img { width: 40px; height: 40px; padding: 5px; border-radius: 8px; background: #f3eff8; }
     nav { display: flex; gap: 24px; font-size: 13px; }
     nav a { color: var(--muted); text-decoration: none; }
     main { padding: 70px 20px; }
-    .card { max-width: 460px; margin: auto; padding: 36px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); }
-    .eyebrow { margin: 0 0 14px; color: var(--accent); font: 500 11px/1.5 ui-monospace, "SFMono-Regular", Consolas, monospace; letter-spacing: .1em; text-transform: uppercase; }
+    .card { max-width: 460px; margin: auto; padding: 36px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); box-shadow: 0 18px 70px #0005; }
+    .eyebrow { margin: 0 0 14px; color: var(--magenta); font: 500 11px/1.5 ui-monospace, "SFMono-Regular", Consolas, monospace; letter-spacing: .1em; text-transform: uppercase; }
     h1 { margin: 0 0 14px; font-size: 36px; line-height: 1.15; letter-spacing: -.04em; }
     .intro { margin: 0 0 28px; color: var(--muted); font-size: 15px; }
     label { display: block; margin: 18px 0 7px; font-size: 14px; font-weight: 600; }
-    input { width: 100%; min-height: 46px; padding: 11px 12px; border: 1px solid #52685d; border-radius: 6px; background: var(--bg); color: var(--text); font: inherit; }
+    input { width: 100%; min-height: 46px; padding: 11px 12px; border: 1px solid #59406d; border-radius: 6px; background: var(--bg); color: var(--text); font: inherit; }
     .hint { margin: 7px 0 0; color: var(--muted); font-size: 13px; }
-    button { width: 100%; min-height: 46px; margin-top: 26px; border: 1px solid var(--accent); border-radius: 6px; background: var(--accent); color: #09150e; font-family: inherit; font-size: 15px; font-weight: 650; line-height: 1.5; cursor: pointer; }
-    button:hover { background: #b2f1d0; }
+    button { width: 100%; min-height: 46px; margin-top: 26px; border: 1px solid var(--accent); border-radius: 6px; background: var(--accent); color: #09060f; font-family: inherit; font-size: 15px; font-weight: 650; line-height: 1.5; cursor: pointer; }
+    button:hover { background: #d8b4fe; }
     button:disabled { opacity: .65; cursor: wait; }
-    #result { min-height: 25px; margin: 18px 0 0; color: #e6c6a4; font-size: 14px; overflow-wrap: anywhere; }
+    #result { min-height: 25px; margin: 18px 0 0; color: #f2b9d7; font-size: 14px; overflow-wrap: anywhere; }
     #sign-in-link { font-size: 14px; }
     .help { margin: 20px 0 0; padding-top: 22px; border-top: 1px solid var(--border); color: var(--muted); font-size: 13px; }
     footer { padding: 0 20px 32px; color: var(--muted); text-align: center; font-size: 12px; }

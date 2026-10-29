@@ -269,7 +269,7 @@ test('public mode exposes only explicit public routes and keeps dashboard asset 
     assert.equal(head.status, 200);
     assert.equal(await head.text(), '');
     assert.equal((await f.anonymous.fetch('/dashboard')).status, 303);
-    for (const path of ['/index.html', '/registry.json', '/download/installer.zip', '/oauth/unknown', '/dashboard/']) {
+    for (const path of ['/index.html', '/dashboard-flow.js', '/dashboard-flow.css', '/registry.json', '/download/installer.zip', '/oauth/unknown', '/dashboard/']) {
       const denied = await f.anonymous.fetch(path);
       assert.equal(denied.status, 403);
       assert.ok(!(await denied.text()).includes('PRIVATE_CONTROL_CENTER'));

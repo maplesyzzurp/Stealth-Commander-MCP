@@ -37,7 +37,7 @@ test('private mode never serves the dashboard, downloads, registry or fallback a
     const signin = await f.call('/sign-in'); assert.equal(signin.status, 200); const source = await signin.text();
     assertSignInForm(source); assert.ok(!source.includes('PRIVATE_DASHBOARD_SOURCE'));
     const dashboard = await f.call('/dashboard'); assert.equal(dashboard.status, 303); assert.equal(dashboard.headers.get('Location'), '/sign-in');
-    for (const path of ['/index.html', '/download/installer.zip', '/registry.json', '/oauth/unknown', '/.well-known/unknown']) { const r = await f.call(path); assert.equal(r.status, 403); assert.ok(!(await r.text()).includes('PRIVATE_DASHBOARD_SOURCE')); }
+    for (const path of ['/index.html', '/dashboard-flow.js', '/dashboard-flow.css', '/download/installer.zip', '/registry.json', '/oauth/unknown', '/.well-known/unknown']) { const r = await f.call(path); assert.equal(r.status, 403); assert.ok(!(await r.text()).includes('PRIVATE_DASHBOARD_SOURCE')); }
     assert.equal((await f.call('/.well-known/oauth-authorization-server')).status, 200);
     const login = await f.call('/api/auth/login', { email, password }); assert.equal(login.status, 200);
     const cookie = login.headers.get('Set-Cookie').split(';')[0];
@@ -45,6 +45,12 @@ test('private mode never serves the dashboard, downloads, registry or fallback a
     assert.equal(await authenticatedDashboard.text(), 'PRIVATE_DASHBOARD_SOURCE');
     assert.equal(authenticatedDashboard.headers.get('Cache-Control'), 'private, no-store');
     assert.equal(authenticatedDashboard.headers.get('Vary'), 'Cookie');
+    for (const path of ['/dashboard-flow.js', '/dashboard-flow.css']) {
+      const bundle = await f.call(path, null, cookie);
+      assert.equal(bundle.status, 200);
+      assert.equal(bundle.headers.get('Cache-Control'), 'private, no-store');
+      assert.equal(bundle.headers.get('Vary'), 'Cookie');
+    }
     assert.equal(await (await f.call('/', null, cookie)).text(), 'PUBLIC_LANDING_SOURCE');
     assert.equal((await f.call('/api/account/session', null, cookie)).status, 200);
     assert.equal((await f.call('/api/auth/register', { email: 'outsider@example.test', password })).status, 403);

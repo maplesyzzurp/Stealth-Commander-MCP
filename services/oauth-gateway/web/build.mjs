@@ -1,10 +1,8 @@
 import { build } from 'esbuild';
 import { fileURLToPath } from 'node:url';
 
-await build({
+const options = {
   absWorkingDir: fileURLToPath(new URL('../', import.meta.url)),
-  entryPoints: ['web/App.jsx'],
-  outfile: 'build/site/app.js',
   bundle: true,
   format: 'esm',
   platform: 'browser',
@@ -15,4 +13,9 @@ await build({
   sourcemap: false,
   legalComments: 'eof',
   logLevel: 'info'
-});
+};
+
+await Promise.all([
+  build({ ...options, entryPoints: ['web/App.jsx'], outfile: 'build/site/app.js' }),
+  build({ ...options, entryPoints: ['web/DashboardFlow.jsx'], outfile: 'build/site/dashboard-flow.js' })
+]);
