@@ -75,3 +75,39 @@ test('public registration retains its existing password and authenticated-sessio
   assert.equal((await f.call('/api/auth/me', undefined, session)).status, 200);
   assert.equal((await f.call('/api/auth/login', { email: approvedEmail, password })).status, 200);
 });
+
+test('public registration rejects malformed email and non-string credentials without creating account state', async () => {
+  const f = fixture('false');
+  const invalidEmails = [undefined, null, [], {}, 12, 'missing-at', 'a@example', 'a@@example.test',
+    'a b@example.test', '.a@example.test', 'a..b@example.test', 'a.@example.test',
+    'a@-example.test', 'a@example-.test', 'a@example..test', 'a@example.123',
+    'a'.repeat(65) + '@example.test', 'a@' + 'b'.repeat(64) + '.test',
+    'a'.repeat(64) + '@' + ['b'.repeat(63), 'c'.repeat(63), 'd'.repeat(63), 'test'].join('.')];
+  for (const email of invalidEmails) {
+    const response = await f.call('/api/auth/register', { email, password });
+    assert.equal(response.status, 400, `Malformed email type/shape must be rejected: ${typeof email}`);
+    assert.equal(response.headers.get('Set-Cookie'), null);
+  }
+  for (const invalidPassword of [undefined, null, [], {}, 123456789012, 'a'.repeat(1025)]) {
+    assert.equal((await f.call('/api/auth/register', { email: approvedEmail, password: invalidPassword })).status, 400);
+  }
+  for (const name of [null, [], {}, 123, 'a'.repeat(129)]) {
+    assert.equal((await f.call('/api/auth/register', { email: approvedEmail, password, name })).status, 400);
+  }
+  assert.equal(f.records.size, 0);
+});
+
+test('public registration normalizes the email, accepts bounded input and cannot overwrite an existing identity', async () => {
+  const f = fixture('false');
+  const originalPassword = 'a'.repeat(1024);
+  const registered = await f.call('/api/auth/register', { email: '  Approved-Owner@Example.Test  ', password: originalPassword, name: 'n'.repeat(128) });
+  assert.equal(registered.status, 200);
+  assert.equal((await registered.json()).user.email, approvedEmail);
+  const saved = f.records.get('user:' + approvedEmail);
+  const duplicate = await f.call('/api/auth/register', { email: approvedEmail.toUpperCase(), password: 'different-synthetic-password' });
+  assert.equal(duplicate.status, 409);
+  assert.equal(duplicate.headers.get('Set-Cookie'), null);
+  assert.equal(f.records.get('user:' + approvedEmail), saved);
+  assert.equal((await f.call('/api/auth/login', { email: approvedEmail, password: originalPassword })).status, 200);
+  assert.equal((await f.call('/api/auth/login', { email: approvedEmail, password: 'different-synthetic-password' })).status, 401);
+});

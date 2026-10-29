@@ -5,6 +5,7 @@ import { blockedToolResponse, publicMcpResponse } from './public-mcp.js';
 import { authStore } from './auth-store.js';
 import { handleBilling } from './billing.js';
 import { signInPage } from './sign-in-page.js';
+import { signUpPage } from './sign-up-page.js';
 
 const CONTROL = 'pc:control';
 const SESSION_SECONDS = 43200;
@@ -350,6 +351,11 @@ export default {
         if (request.method !== 'GET' && request.method !== 'HEAD') return json(405, 'Method is not supported.', { Allow: 'GET, HEAD' });
         return signInPage(request.method);
       }
+      if (path === '/sign-up') {
+        if (new URL(request.url).search) return json(404, 'Page not found.');
+        if (request.method !== 'GET' && request.method !== 'HEAD') return json(405, 'Method is not supported.', { Allow: 'GET, HEAD' });
+        return signUpPage(request.method);
+      }
       if (typeof env.AUTH_STORE?.fetch !== 'function') return json(503, 'Gateway is not configured.');
       env = { ...env, STEALTH_AUTH: authStore(env.AUTH_STORE), OAUTH_KV: authStore(env.AUTH_STORE, 'oauth:', true) };
       await env.STEALTH_AUTH.initialize();
@@ -378,7 +384,7 @@ export default {
       }
       if (path === '/api/device/control') return await deviceControl(request, env, await account(request, env));
       const publicProtocol = ['/authorize', '/mcp', '/oauth/token', '/oauth/register', '/.well-known/oauth-authorization-server', '/.well-known/oauth-protected-resource/mcp'].includes(path);
-      if (String(env.PRIVATE_MODE).toLowerCase() === 'true' && !path.startsWith('/api/') && !publicProtocol) {
+      if (!path.startsWith('/api/') && !publicProtocol) {
         if (!await account(request, env)) return json(403, 'Private sign-in is required.');
         const asset = await env.ASSETS.fetch(request), headers = new Headers(asset.headers);
         headers.set('Cache-Control', 'private, no-store');

@@ -14,9 +14,13 @@ The default test command builds the real worker and includes every test/*.test.m
 
 The sibling strong-auth-service, rate-limit-service and billing-service tests resolve Miniflare from this package's pinned dependency installation. Run npm test in each sibling after installing this package.
 
-## Private configuration
+## Account access configuration
 
-wrangler.example.jsonc and pages-bindings.example.jsonc are incomplete examples, not deployment instructions or live account settings. Keep PRIVATE_MODE=true. A missing, empty or malformed PRIVATE_ACCOUNT_ALLOWLIST denies accounts; configure only approved account emails outside the source repository. Configure fresh CONTROL_CSRF_SECRET through the platform secret manager, never a committed variable. Do the same for BILLING_CSRF_SECRET only if enabling the test-only billing UI.
+wrangler.example.jsonc and pages-bindings.example.jsonc are incomplete examples, not live account settings. They default to PRIVATE_MODE=true. In that mode, PRIVATE_ACCOUNT_ALLOWLIST controls approved account access; a missing, empty or malformed allowlist denies accounts. Configure approved accounts outside the source repository.
+
+Set PRIVATE_MODE=false in the deployed gateway configuration to enable normal website registration and email/password sign-in. The account allowlist is not a public-mode registration requirement. Public signup does not make account records, dashboards, paired PCs, or the private service bindings public. Authenticated account sessions, account separation, CSRF checks, explicit selected-PC consent, and single-use request tickets remain enforced in both modes. Keep the configured mode explicit and run its registration/sign-in acceptance checks after deployment.
+
+Configure fresh CONTROL_CSRF_SECRET through the platform secret manager, never a committed variable. Do the same for BILLING_CSRF_SECRET only if enabling the test-only billing UI.
 
 AUTH_STORE, AUTH_RATE_LIMITER and REGISTRATION_RATE_LIMITER must be private service bindings. OAuth/account state is stored through the strong authority, not a direct gateway KV binding. Complete private service namespace bindings and migration configuration using reviewed account-owned resources. Build assets from this checkout; the supplied icon is the approved ninja image.
 
@@ -28,7 +32,9 @@ When the submission portal provides a domain challenge, configure its exact toke
 
 The product landing page at /, the informational /about and /support pages, and the original /icon.png are independently public for GET and HEAD requests. The landing page maps to assets/landing.html while the existing assets/index.html remains the private control center. The pages use Cloudflare's default clean-URL handling; raw .html aliases, trailing-slash variants, and other assets remain protected in private mode. Do not configure SPA fallback or force trailing slashes for these assets. These informational pages do not receive account credentials, run scripts, submit forms, or expose the dashboard. Deploy all page files and the route handler together.
 
-Account sign-in is at /sign-in and sends credentials only to the existing same-origin /api/auth/login endpoint. Successful sign-in opens /dashboard, which requires a current allowed account session before serving the private control center. Credential rejection stays generic; throttling, temporary service failure, and network failure have separate guidance without displaying server response bodies. Public information and the sign-in form remain readable during account-store outages, while account, dashboard, OAuth, and PC routes continue to fail closed. PRIVATE_ACCOUNT_ALLOWLIST is the account approval setting; PRIVATE_ALLOWED_EMAILS is not supported.
+Account sign-in is at /sign-in and sends credentials only to the same-origin /api/auth/login endpoint. Registration is at /sign-up and uses /api/auth/register; PRIVATE_MODE determines whether normal signup or approved-account access applies. Successful sign-in opens /dashboard, which requires a current account session and, in private mode, allowlist approval. Credential rejection stays generic; throttling, temporary service failure, and network failure have separate guidance without displaying server response bodies. Public information and account forms remain readable during account-store outages, while protected account, dashboard, OAuth, and PC operations continue to fail closed. PRIVATE_ACCOUNT_ALLOWLIST is the private-mode approval setting; PRIVATE_ALLOWED_EMAILS is not supported.
+
+Website signup is separate from distribution: the Windows client is still supplied as approved source or a private npm archive, and the ChatGPT plugin is not a public listing. Neither this configuration flag nor a source push publishes those distributions.
 
 ## Legacy client migration
 

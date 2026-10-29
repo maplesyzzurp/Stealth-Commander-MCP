@@ -10,6 +10,13 @@ const email = 'approved@example.test';
 const password = 'synthetic-long-password';
 const user = { email, name: 'Synthetic', api_key: 'sc_live_' + 'a'.repeat(40), salt: 'a'.repeat(32), devices: [], created_at: '2026-10-25T12:00:00.000Z' };
 user.hash = await hashPassword(password, user.salt);
+function assertSignInForm(source) {
+  assert.match(source, /<form\b[^>]*id="signin"/);
+  assert.match(source, /<input\b[^>]*name="email"[^>]*type="email"/);
+  assert.match(source, /<input\b[^>]*name="password"[^>]*type="password"/);
+  assert.match(source, /fetch\('\/api\/auth\/login'/);
+  assert.match(source, /href="\/sign-up"/);
+}
 async function fixture(allowlist, bindings = {}, assets = request => new Response(new URL(request.url).pathname === '/landing' ? 'PUBLIC_LANDING_SOURCE' : 'PRIVATE_DASHBOARD_SOURCE')) {
   const mf = new Miniflare({ workers: [{ name: 'gateway', modules: true, scriptPath: 'build/worker.js', compatibilityDate: '2026-07-30', compatibilityFlags: ['global_fetch_strictly_public'], bindings: { GATEWAY_ORIGIN: origin, PRIVATE_MODE: 'true', ...(allowlist === undefined ? {} : { PRIVATE_ACCOUNT_ALLOWLIST: allowlist }), CONTROL_CSRF_SECRET: 'synthetic-control-secret-at-least-32-chars', BILLING_TEST_ENABLED: 'true', BILLING_MODE: 'test', ...bindings }, serviceBindings: { AUTH_STORE: 'auth', BILLING_SERVICE: () => Response.json({ received: true }), ASSETS: assets, AUTH_RATE_LIMITER: () => Response.json({ success: true }), REGISTRATION_RATE_LIMITER: () => Response.json({ success: true }) }, outboundService() { throw new Error('No external network.'); } }, { name: 'auth', modules: true, script: readFileSync(new URL('../../strong-auth-service/worker.js', import.meta.url), 'utf8'), compatibilityDate: '2026-07-30', durableObjects: { STORE: { className: 'AuthStore', useSQLite: true } }, kvNamespaces: ['LEGACY_AUTH'] }] });
   const store = authStore(await mf.getWorker('auth')); await store.initialize();
@@ -28,7 +35,7 @@ test('private mode never serves the dashboard, downloads, registry or fallback a
   try {
     const landing = await f.call('/'); assert.equal(landing.status, 200); assert.equal(await landing.text(), 'PUBLIC_LANDING_SOURCE');
     const signin = await f.call('/sign-in'); assert.equal(signin.status, 200); const source = await signin.text();
-    assert.match(source, /approved Stealth Commander account/); assert.ok(!source.includes('PRIVATE_DASHBOARD_SOURCE'));
+    assertSignInForm(source); assert.ok(!source.includes('PRIVATE_DASHBOARD_SOURCE'));
     const dashboard = await f.call('/dashboard'); assert.equal(dashboard.status, 303); assert.equal(dashboard.headers.get('Location'), '/sign-in');
     for (const path of ['/index.html', '/download/installer.zip', '/registry.json', '/oauth/unknown', '/.well-known/unknown']) { const r = await f.call(path); assert.equal(r.status, 403); assert.ok(!(await r.text()).includes('PRIVATE_DASHBOARD_SOURCE')); }
     assert.equal((await f.call('/.well-known/oauth-authorization-server')).status, 200);
@@ -138,7 +145,7 @@ test('only exact informational routes and the original icon are public', async (
     }
     const signin = await f.call('/sign-in');
     assert.equal(signin.status, 200);
-    assert.match(await signin.text(), /approved Stealth Commander account/);
+    assertSignInForm(await signin.text());
     assert.equal((await f.call('/mcp')).status, 401);
     assert.equal((await f.call('/api/account/session')).status, 401);
     assert.equal((await f.call('/api/device/control', { device_id: 'outside-pc', path: '/meta', method: 'GET' })).status, 401);

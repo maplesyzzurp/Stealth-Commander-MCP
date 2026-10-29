@@ -1,5 +1,6 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<meta name="author" content="nexusmap.ai">
 <link rel="icon" type="image/png" href="/icon.png">
 <title>Stealth Commander · Control Center</title>
 <style>
@@ -53,6 +54,7 @@ th{color:#8b9bb4;font-size:11px;text-transform:uppercase}
   <div class="pills">
     <select id="acctDeviceSelect" style="display:none;max-width:210px;padding:4px 8px;font-size:11px" onchange="switchAccountDevice(this.value)"></select>
     <button class="sec" id="acctBtn" onclick="openAuthModal()">Sign In / Account</button>
+    <a class="btn sec" href="/sign-up">Create account</a>
     <span class="pill ok" id="tstatus">ONLINE</span>
     <a class="btn sec" id="openDash" href="#" target="_blank">Open Live Dashboard</a>
     <button class="danger" id="killTunBtn" style="display:none" onclick="act('stop_tunnel')">Kill Public Tunnel (Lock Local)</button>
@@ -75,7 +77,7 @@ th{color:#8b9bb4;font-size:11px;text-transform:uppercase}
     </table>
   </div>
   <div class="panel">
-    <h3><span>Pair / Setup Any Windows PC via Approved Private Build</span><button class="sec" onclick="copyText('stealth-commander setup','Copied setup command!')">Copy Setup Command</button></h3>
+    <h3><span>Pair a Windows PC with your private client build</span><button class="sec" onclick="copyText('stealth-commander setup','Copied setup command!')">Copy Setup Command</button></h3>
     <code class="blk">stealth-commander setup --enable-remote</code>
   </div>
 </section>
@@ -178,7 +180,7 @@ th{color:#8b9bb4;font-size:11px;text-transform:uppercase}
   <div id="acctSignedOutPanel" class="grid">
     <div class="panel">
       <h3><span>Sign In or Create Your Stealth Commander Account</span></h3>
-      <p style="margin:0;font-size:12px;color:#9fb0c7">Sign in to link your Windows PCs and VDI boxes to your personal account. Your devices auto-discover over HTTPS without manual tunnel URLs and are available through your signed-in account.</p>
+      <p style="margin:0;font-size:12px;color:#9fb0c7">Create an account or sign in to manage your paired Windows PCs. Connecting a PC requires the separately distributed Windows client and local pairing.</p>
       <div class="row" style="margin-top:4px">
         <button id="modeSignInBtn" onclick="setAuthMode('login')">Sign In</button>
         <button class="sec" id="modeRegBtn" onclick="setAuthMode('register')">Create Account</button>
@@ -199,7 +201,7 @@ th{color:#8b9bb4;font-size:11px;text-transform:uppercase}
     </div>
     <div class="panel">
       <h3><span>CLI Account Login & Setup</span><button class="sec" onclick="copyText('stealth-commander login','Copied CLI login command!')">Copy CLI Login</button></h3>
-      <p style="margin:0;font-size:12px;color:#8b9bb4">You can also sign in or register directly from PowerShell on any Windows PC:</p>
+      <p style="margin:0;font-size:12px;color:#8b9bb4">If you have the Windows client, sign in from PowerShell:</p>
       <code class="blk">stealth-commander login</code>
       <h3><span>Check Signed-In Account in CLI</span></h3>
       <code class="blk">stealth-commander whoami</code>
@@ -223,7 +225,7 @@ th{color:#8b9bb4;font-size:11px;text-transform:uppercase}
       <div class="panel">
         <h3><span>Account Security & Personal API Key</span><div class="row"><button class="sec" onclick="copyText(document.getElementById('acctKeyCode').textContent,'Copied Account API Key!')">Copy API Key</button><button class="sec" onclick="rotateApiKey()">Rotate Key</button><button class="danger" onclick="logoutAccount()">Sign Out</button></div></h3>
         <code class="blk" id="acctKeyCode">—</code>
-        <h3 style="margin-top:6px"><span>1-Step Authenticated PC Setup (Auto-Links Any Windows PC to Your Account)</span><button class="sec" onclick="copyText(document.getElementById('acctSetupCmd').textContent,'Copied Account Setup Command!')">Copy Setup Command</button></h3>
+        <h3 style="margin-top:6px"><span>Pair this Windows PC and enable remote access</span><button class="sec" onclick="copyText(document.getElementById('acctSetupCmd').textContent,'Copied Account Setup Command!')">Copy Setup Command</button></h3>
         <code class="blk" id="acctSetupCmd">stealth-commander setup --enable-remote</code>
       </div>
       <div class="panel">
@@ -264,7 +266,7 @@ th{color:#8b9bb4;font-size:11px;text-transform:uppercase}
   <h3><span>Set Up Stealth Commander on Your PC (or Sign In to Your Account)</span><div class="row"><button onclick="openAuthModal()">Sign In / Create Account</button><button class="sec" onclick="copyText(document.getElementById('bannerSetupCmd').textContent,'Copied setup command!')">Copy Setup Command</button></div></h3>
   <p style="margin:0;font-size:12px;color:#9fb0c7">Sign in to your Stealth Commander account to auto-connect your linked Windows PCs, or run the command below in PowerShell on your Windows PC:</p>
   <code class="blk" id="bannerSetupCmd">stealth-commander setup --enable-remote</code>
-  <p>Private testing: select a PC paired to your signed-in account.</p>
+  <p>Account creation is open. The Windows client is currently distributed privately, and the ChatGPT plugin is not publicly listed. Select a PC paired to your signed-in account.</p>
 </div>
 <div id="toast"></div>
 <script>

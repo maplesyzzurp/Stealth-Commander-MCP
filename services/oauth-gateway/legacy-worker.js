@@ -142,6 +142,17 @@ function privateAccountAllowed(env, email) {
   } catch { return false; }
 }
 
+function validRegistrationEmail(email) {
+  if (email.length > 254) return false;
+  const parts = email.split('@');
+  if (parts.length !== 2 || parts[0].length > 64) return false;
+  const [local, domain] = parts;
+  if (!/^[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*$/.test(local)) return false;
+  const labels = domain.split('.');
+  return labels.length >= 2 && !/^\d+$/.test(labels.at(-1)) && labels.every(label =>
+    /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label));
+}
+
 async function mutateAccount(store, expected, change, credential = null, ownerToken = null) {
   for (let attempt = 0; attempt < 4; attempt++) {
     const key = 'user:' + expected.email, authorityKey = 'accountkey:' + expected.email;
@@ -398,10 +409,15 @@ export default {
       if (typeof body.email !== "string") return jsonResp(400, { ok: false, error: "Email must be a string." }, req);
       const email = String(body.email || "").trim().toLowerCase();
       if (!privateAccountAllowed(env, email)) return jsonResp(403, { ok: false, error: 'Private account access is required.' }, req);
-      const password = String(body.password || "");
-      const name = String(body.name || "").trim() || email.split("@")[0];
-      if (!email.includes("@") || email.length < 5) return jsonResp(400, { ok: false, error: "Valid email is required." }, req);
-      if (password.length < 12) return jsonResp(400, { ok: false, error: "Password must be at least 12 characters." }, req);
+      if (!validRegistrationEmail(email)) return jsonResp(400, { ok: false, error: "Enter a valid email address of at most 254 characters." }, req);
+      if (typeof body.password !== 'string' || body.password.length < 12 || body.password.length > 1024) {
+        return jsonResp(400, { ok: false, error: "Password must be a string between 12 and 1024 characters." }, req);
+      }
+      if (body.name !== undefined && (typeof body.name !== 'string' || body.name.length > 128)) {
+        return jsonResp(400, { ok: false, error: "Name must be a string of at most 128 characters." }, req);
+      }
+      const password = body.password;
+      const name = (body.name || '').trim() || email.split("@")[0];
       const existing = await store.get("user:" + email);
       if (existing) return jsonResp(409, { ok: false, error: "Account already exists. Please sign in." }, req);
       const salt = randomHex(16);

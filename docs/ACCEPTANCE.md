@@ -35,7 +35,17 @@ Then run npm test in services/strong-auth-service and services/rate-limit-servic
 These services share the gateway test runtime; they do not carry separate lockfiles.
 A workerd/network setup failure is an environment-blocked check, not a pass
 and not proof that every affected authorization case is a code defect.
-Preserve PRIVATE_MODE and production authentication restrictions.
+Test the intended `PRIVATE_MODE` explicitly. `false` enables normal registration and
+email/password sign-in; `true` restricts accounts to the configured allowlist.
+Authentication, account separation, CSRF checks, selected-PC consent, and request
+ticket verification remain required in both modes.
+
+For website acceptance in public mode, use two new task-owned accounts to verify
+registration, sign-in, duplicate-account handling, invalid credentials, logout,
+and denial of access to the other account's dashboard data and devices. Check
+missing/invalid CSRF rejection on protected mutations. In private mode, also
+verify that an unapproved account cannot register or sign in. Website signup
+does not require a PC pairing or prove Windows-client or ChatGPT-listing availability.
 
 ## Live Windows checks
 
@@ -85,8 +95,9 @@ project and its own IDE configuration. Review captured PNGs as well as hashes.
 | Generic command | Exact stdout/stderr/return code, timeout/error behavior | Account-level command execution; GUI isolation is not guaranteed |
 | Installer/package | Source/manifest/archive parity, supported prerequisites, separate dependency cache identity, isolated install/upgrade/rollback, config preservation | Fixture tests do not replace a fresh Windows installation |
 | Icon/publisher | Exact approved ninja image in source and installed manifests; nexusmap.ai attribution | Cloud connector and local plugin are different distributions |
+| Website accounts | Public-mode registration/sign-in, private-mode allowlist denial, authenticated dashboard, logout, account separation and CSRF rejection | Website signup does not distribute the Windows client or publish the ChatGPT plugin |
 | Remote authorization | Login/consent/explicit paired PC, second-account rejection, expired/revoked credentials, replay/alias/rate limits, logout/unlink/tunnel cleanup | Unit tests and historical results do not replace fresh exact-release acceptance |
-| Public submission | Verified publisher identity, public support/privacy/terms, recorded demo and executable reviewer examples | Do not fabricate legal policies, reviewer results, or identity verification |
+| ChatGPT plugin submission | Verified publisher identity, public support/privacy/terms, recorded demo and executable reviewer examples | Website registration does not establish listing approval or public Windows distribution |
 
 ## Required release evidence
 

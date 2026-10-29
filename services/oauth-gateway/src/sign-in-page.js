@@ -4,7 +4,7 @@ const document = `<!doctype html>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#07090c">
-  <title>Sign in · Stealth Commander by nexusmap.ai</title>
+  <title>Sign in | Stealth Commander</title>
   <link rel="icon" type="image/png" href="/icon.png">
   <style>
     :root { color-scheme: dark; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #07090c; color: #f3f6fa; }
@@ -18,7 +18,6 @@ const document = `<!doctype html>
     .header-inner { min-height: 88px; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
     .brand { display: inline-flex; align-items: center; gap: 12px; color: #f3f6fa; text-decoration: none; font-size: 15px; font-weight: 650; }
     .brand img { width: 40px; height: 40px; padding: 5px; border-radius: 10px; background: #f1f4f8; }
-    .brand small { display: block; color: #a9b4c3; font-size: 11px; font-weight: 450; }
     nav { display: flex; gap: 24px; font-size: 13px; }
     nav a { color: #a9b4c3; text-decoration: none; }
     main { padding: 70px 20px; }
@@ -40,7 +39,7 @@ const document = `<!doctype html>
 <body>
   <header>
     <div class="shell header-inner">
-      <a class="brand" href="/" aria-label="Stealth Commander home"><img src="/icon.png" width="40" height="40" alt=""><span>Stealth Commander<small>by nexusmap.ai</small></span></a>
+      <a class="brand" href="/" aria-label="Stealth Commander home"><img src="/icon.png" width="40" height="40" alt=""><span>Stealth Commander</span></a>
       <nav aria-label="Main navigation"><a href="/about">About</a><a href="/support">Support</a></nav>
     </div>
   </header>
@@ -48,18 +47,18 @@ const document = `<!doctype html>
     <section class="card" aria-labelledby="sign-in-title">
       <p class="eyebrow">Account access</p>
       <h1 id="sign-in-title">Welcome back.</h1>
-      <p class="intro">Sign in with your approved Stealth Commander account to open your dashboard and paired PCs.</p>
+      <p class="intro">Sign in to open your dashboard and paired PCs.</p>
       <form id="signin" method="post" action="/sign-in">
-        <label for="email">Email</label><input id="email" name="email" type="email" required autocomplete="username">
-        <label for="password">Password</label><input id="password" name="password" type="password" required autocomplete="current-password">
+        <label for="email">Email</label><input id="email" name="email" type="email" maxlength="254" required autocomplete="username">
+        <label for="password">Password</label><input id="password" name="password" type="password" maxlength="1024" required autocomplete="current-password">
         <button id="submit" type="submit">Sign in</button>
         <p id="result" role="status" aria-live="polite"></p>
       </form>
       <noscript><p>Enable JavaScript in your browser to sign in securely.</p></noscript>
-      <p class="help">Account access is currently by approval. Need help signing in? <a href="/support">Visit Support</a>.</p>
+      <p class="help">New here? <a href="/sign-up">Create an account</a>.<br>Need help signing in? <a href="/support">Visit Support</a>.</p>
     </section>
   </main>
-  <footer>Stealth Commander by nexusmap.ai</footer>
+  <footer>Stealth Commander</footer>
   <script>
     const form = document.getElementById('signin');
     const result = document.getElementById('result');
@@ -81,7 +80,7 @@ const document = `<!doctype html>
         if (response.ok) { location.assign('/dashboard'); return; }
         if (response.status === 429) result.textContent = 'Too many sign-in attempts. Wait one minute, then try again.';
         else if (response.status >= 500) result.textContent = 'Sign-in is temporarily unavailable. Try again shortly. If it continues, visit Support.';
-        else if (response.status === 401 || response.status === 403) result.textContent = 'Sign-in could not be verified. Use your approved Stealth Commander account email and Stealth Commander password, then try again.';
+        else if (response.status === 401 || response.status === 403) result.textContent = 'Email or password could not be verified. Check your details, or create an account using the link below.';
         else result.textContent = 'Sign-in could not be completed. Check your details and try again.';
       } catch {
         result.textContent = controller.signal.aborted

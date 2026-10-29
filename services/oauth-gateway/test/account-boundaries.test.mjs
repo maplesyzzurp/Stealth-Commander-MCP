@@ -11,7 +11,7 @@ const callback = 'https://synthetic-client.example/callback';
 const digest = value => createHash('sha256').update(value).digest('hex');
 
 // The gateway and SQLite authority are real. Only off-PC network/GUI work is replaced.
-async function fixture() {
+async function fixture({ privateMode = 'true', pairPcs = true } = {}) {
   const outgoing = [];
   const identities = [
     { email: 'account-a@example.test', password: 'synthetic-account-a-password', key: 'a' },
@@ -20,7 +20,7 @@ async function fixture() {
   const mf = new Miniflare({ workers: [{
     name: 'gateway', modules: true, scriptPath: 'build/worker.js', compatibilityDate: '2026-07-30',
     compatibilityFlags: ['global_fetch_strictly_public'],
-    bindings: { GATEWAY_ORIGIN: origin, PRIVATE_MODE: 'true', PRIVATE_ACCOUNT_ALLOWLIST: JSON.stringify([...identities.map(i => i.email), 'not-provisioned@example.test']), CONTROL_CSRF_SECRET: 'synthetic-account-boundary-secret-32-chars', BILLING_TEST_ENABLED: 'false' },
+    bindings: { GATEWAY_ORIGIN: origin, PRIVATE_MODE: privateMode, PRIVATE_ACCOUNT_ALLOWLIST: privateMode === 'true' ? JSON.stringify([...identities.map(i => i.email), 'not-provisioned@example.test']) : '[]', CONTROL_CSRF_SECRET: 'synthetic-account-boundary-secret-32-chars', BILLING_TEST_ENABLED: 'false' },
     serviceBindings: { AUTH_STORE: 'auth', ASSETS: request => new Response(new URL(request.url).pathname === '/landing' ? 'PUBLIC_INFORMATION' : 'PRIVATE_CONTROL_CENTER'), AUTH_RATE_LIMITER: () => Response.json({ success: true }), REGISTRATION_RATE_LIMITER: () => Response.json({ success: true }) },
     outboundService: async request => {
       const url = new URL(request.url);
@@ -41,7 +41,7 @@ async function fixture() {
     async fetch(path, init = {}) {
       const headers = new Headers(init.headers);
       headers.set('CF-Connecting-IP', '192.0.2.17');
-      headers.set('Origin', origin);
+      if (!headers.has('Origin')) headers.set('Origin', origin);
       if (this.cookies.size) headers.set('Cookie', [...this.cookies].map(([key, value]) => `${key}=${value}`).join('; '));
       const response = await mf.dispatchFetch(origin + path, { ...init, headers, redirect: 'manual' });
       for (const cookie of response.headers.getSetCookie()) {
@@ -63,29 +63,36 @@ async function fixture() {
     await store.initialize();
     const accounts = [];
     for (const identity of identities) {
-      const salt = randomBytes(16).toString('hex');
-      const user = { email: identity.email, salt, hash: await hashPassword(identity.password, salt), api_key: 'sc_live_' + identity.key.repeat(40), devices: [] };
-      await store.put('user:' + user.email, JSON.stringify(user));
-      await store.put('apikey:' + user.api_key, user.email);
       const browser = new Browser();
+      if (privateMode === 'true') {
+        const salt = randomBytes(16).toString('hex');
+        const user = { email: identity.email, salt, hash: await hashPassword(identity.password, salt), api_key: 'sc_live_' + identity.key.repeat(40), devices: [] };
+        await store.put('user:' + user.email, JSON.stringify(user));
+        await store.put('apikey:' + user.api_key, user.email);
+      } else {
+        const registered = await browser.json('/api/auth/register', { email: identity.email, password: identity.password });
+        assert.equal(registered.status, 200);
+        assert.deepEqual((await registered.json()).user.devices, []);
+      }
       assert.equal((await browser.json('/api/auth/login', { email: identity.email, password: identity.password })).status, 200);
       const session = await (await browser.fetch('/api/account/session')).json();
       accounts.push({ ...identity, browser, csrf: session.csrfToken, pcs: [] });
     }
-    for (const [account, name] of [[accounts[0], 'account-a-first'], [accounts[0], 'account-a-second'], [accounts[1], 'account-b']]) {
+    const pairPc = async (account, name) => {
       const id = name + '-pc';
       const mcpUrl = `https://${id}.trycloudflare.com/${randomBytes(24).toString('hex')}/mcp`;
       const response = await account.browser.json('/api/devices/pair', { device_id: id, hostname: name, mcp_url: mcpUrl });
       assert.equal(response.status, 200);
       account.pcs.push({ id, mcpUrl, token: (await response.json()).device_token });
-    }
+    };
+    if (pairPcs) for (const [account, name] of [[accounts[0], 'account-a-first'], [accounts[0], 'account-a-second'], [accounts[1], 'account-b']]) await pairPc(account, name);
     const control = (account, body) => account.browser.json('/api/device/control', body, { 'X-Stealth-CSRF': account.csrf });
     const redeem = (pc, record, changes = {}) => mf.dispatchFetch(origin + '/api/devices/authorize', {
       method: 'POST', headers: { Authorization: 'Bearer ' + pc.token, 'Content-Type': 'application/json' },
       body: JSON.stringify({ ticket: record.headers['x-stealth-pc-authorization'], method: record.method, path: new URL(record.url).pathname.replace(/^\/[A-Za-z0-9_-]{32,128}/, ''), body_sha256: digest(record.body), ...changes })
     });
     const mcp = token => mf.dispatchFetch(origin + '/mcp', { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 8, method: 'tools/list' }) });
-    return { mf, store, outgoing, a: accounts[0], b: accounts[1], anonymous: new Browser(), control, redeem, mcp };
+    return { mf, store, outgoing, a: accounts[0], b: accounts[1], anonymous: new Browser(), control, redeem, mcp, pairPc };
   } catch (error) { await mf.dispose(); throw error; }
 }
 
@@ -212,5 +219,68 @@ test('private A/B acceptance: rotating A key revokes its session, pending ticket
     assert.equal((await f.mcp(aTokens.access_token)).status, 401);
     assert.equal((await f.b.browser.fetch('/api/auth/me')).status, 200);
     assert.equal((await f.mcp(bTokens.access_token)).status, 200);
+  } finally { await f.mf.dispose(); }
+});
+
+test('public A/B registration preserves account ownership and starts with no PC access', async () => {
+  const f = await fixture({ privateMode: 'false', pairPcs: false });
+  try {
+    assert.equal((await f.anonymous.fetch('/sign-up')).status, 200);
+    for (const account of [f.a, f.b]) {
+      const me = await account.browser.fetch('/api/auth/me');
+      assert.equal(me.status, 200);
+      const body = await me.json();
+      assert.equal(body.user.email, account.email);
+      assert.deepEqual(body.user.devices, []);
+      assert.equal((await account.browser.fetch('/dashboard')).status, 200);
+      assert.equal((await f.control(account, { device_id: 'unpaired-pc', method: 'GET', path: '/meta' })).status, 401);
+    }
+    assert.equal(f.outgoing.length, 0);
+    const before = await f.store.get('user:' + f.b.email);
+    const duplicate = await f.anonymous.json('/api/auth/register', { email: f.b.email.toUpperCase(), password: 'different-synthetic-password' });
+    assert.equal(duplicate.status, 409);
+    assert.equal(duplicate.headers.get('Set-Cookie'), null);
+    assert.equal(await f.store.get('user:' + f.b.email), before);
+    assert.equal((await f.b.browser.json('/api/auth/logout', {})).status, 200);
+    assert.equal((await f.b.browser.fetch('/api/auth/me')).status, 401);
+    assert.equal((await f.b.browser.json('/api/auth/login', { email: f.b.email, password: 'different-synthetic-password' })).status, 401);
+    assert.equal((await f.b.browser.json('/api/auth/login', { email: f.b.email, password: f.b.password })).status, 200);
+    f.b.csrf = (await (await f.b.browser.fetch('/api/account/session')).json()).csrfToken;
+    await f.pairPc(f.a, 'account-a-first');
+    await f.pairPc(f.b, 'account-b');
+    assert.equal((await f.control(f.a, { device_id: f.a.pcs[0].id, method: 'GET', path: '/meta' })).status, 200);
+    const sent = f.outgoing.length;
+    assert.equal((await f.control(f.a, { device_id: f.b.pcs[0].id, method: 'GET', path: '/meta' })).status, 401);
+    assert.equal((await f.control(f.b, { device_id: f.a.pcs[0].id, method: 'GET', path: '/meta' })).status, 401);
+    assert.equal(f.outgoing.length, sent);
+    assert.equal((await f.a.browser.fetch('/api/billing/status')).status, 503);
+  } finally { await f.mf.dispose(); }
+});
+
+test('public mode exposes only explicit public routes and keeps dashboard asset aliases authenticated', async () => {
+  const f = await fixture({ privateMode: 'false', pairPcs: false });
+  try {
+    assert.equal(await (await f.anonymous.fetch('/')).text(), 'PUBLIC_INFORMATION');
+    assert.equal((await f.anonymous.fetch('/sign-in')).status, 200);
+    assert.equal((await f.anonymous.fetch('/sign-up')).status, 200);
+    assert.equal((await f.anonymous.fetch('/sign-up?ignored=1')).status, 404);
+    assert.equal((await f.anonymous.fetch('/sign-up', { method: 'POST' })).status, 405);
+    const head = await f.anonymous.fetch('/sign-up', { method: 'HEAD' });
+    assert.equal(head.status, 200);
+    assert.equal(await head.text(), '');
+    assert.equal((await f.anonymous.fetch('/dashboard')).status, 303);
+    for (const path of ['/index.html', '/registry.json', '/download/installer.zip', '/oauth/unknown', '/dashboard/']) {
+      const denied = await f.anonymous.fetch(path);
+      assert.equal(denied.status, 403);
+      assert.ok(!(await denied.text()).includes('PRIVATE_CONTROL_CENTER'));
+    }
+    assert.equal((await f.anonymous.fetch('/api/auth/me')).status, 401);
+    assert.equal((await f.anonymous.fetch('/api/account/session')).status, 401);
+    assert.equal((await f.anonymous.json('/api/device/control', { device_id: 'unpaired-pc', method: 'GET', path: '/meta' })).status, 401);
+    assert.equal((await f.anonymous.json('/api/auth/login', { email: f.a.email, password: f.a.password }, { Origin: 'https://untrusted.example' })).status, 403);
+    assert.equal((await f.anonymous.json('/api/auth/register', { email: 'untrusted-origin@example.test', password: 'synthetic-origin-password' }, { Origin: 'https://untrusted.example' })).status, 403);
+    assert.equal(await f.store.get('user:untrusted-origin@example.test'), null);
+    assert.equal(await (await f.a.browser.fetch('/dashboard')).text(), 'PRIVATE_CONTROL_CENTER');
+    assert.equal(await (await f.b.browser.fetch('/index.html')).text(), 'PRIVATE_CONTROL_CENTER');
   } finally { await f.mf.dispose(); }
 });

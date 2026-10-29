@@ -14,7 +14,7 @@ function browser(fetchResult) {
   const form = { addEventListener(event, callback) { assert.equal(event, 'submit'); submitHandler = callback; } };
   runInNewContext(script, {
     document: { getElementById(id) { return { signin: form, result, submit }[id]; } },
-    FormData: class { constructor(value) { assert.equal(value, form); } get(key) { return { email: 'approved@example.test', password: 'synthetic-long-password' }[key]; } },
+    FormData: class { constructor(value) { assert.equal(value, form); } get(key) { return { email: 'member@example.test', password: 'synthetic-long-password' }[key]; } },
     AbortController,
     setTimeout(callback, delay) { assert.equal(delay, 15000); timeoutCallback = callback; return 1; },
     clearTimeout(id) { assert.equal(id, 1); cleared = true; },
@@ -32,12 +32,12 @@ test('successful sign-in uses same-origin JSON and the protected dashboard witho
   const { path, options } = b.requests[0];
   assert.equal(path, '/api/auth/login'); assert.equal(options.method, 'POST');
   assert.equal(options.credentials, 'same-origin'); assert.equal(options.redirect, 'error'); assert.equal(options.cache, 'no-store');
-  assert.deepEqual(JSON.parse(options.body), { email: 'approved@example.test', password: 'synthetic-long-password' });
+  assert.deepEqual(JSON.parse(options.body), { email: 'member@example.test', password: 'synthetic-long-password' });
   assert.equal(b.submit.disabled, false); assert.equal(b.cleared, true);
 });
 
 test('credential rejection, throttling and service failure have distinct safe messages without displaying server payloads', async () => {
-  const cases = [[401, /approved Stealth Commander account email and Stealth Commander password/], [403, /approved Stealth Commander account email and Stealth Commander password/], [429, /Wait one minute/], [503, /temporarily unavailable/], [502, /temporarily unavailable/], [400, /could not be completed/]];
+  const cases = [[401, /Email or password could not be verified/], [403, /Email or password could not be verified/], [429, /Wait one minute/], [503, /temporarily unavailable/], [502, /temporarily unavailable/], [400, /could not be completed/]];
   for (const [status, message] of cases) {
     const b = browser(() => ({ ok: false, status, json() { throw new Error('Do not display a raw response.'); }, text() { throw new Error('Do not display a raw response.'); } }));
     await b.run();
@@ -45,6 +45,15 @@ test('credential rejection, throttling and service failure have distinct safe me
     assert.deepEqual(b.destinations, []);
     assert.equal(b.submit.disabled, false); assert.equal(b.cleared, true);
   }
+});
+
+test('sign-in offers an obvious public account creation link without approval or publisher copy', async () => {
+  assert.match(html, /href="\/sign-up">Create an account<\/a>/);
+  assert.doesNotMatch(html, /approved|approval|nexusmap\.ai|\ufffd/i);
+  const head = signInPage('HEAD');
+  assert.equal(await head.text(), '');
+  assert.equal(head.headers.get('Content-Type'), 'text/html; charset=utf-8');
+  assert.equal(head.headers.get('Cache-Control'), 'no-store');
 });
 
 test('network failures and bounded timeouts release the submit button and allow retry', async () => {

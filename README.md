@@ -8,7 +8,9 @@ This repository is the authoritative source for the skill. An agent starts with 
 
 ## PC installer
 
-Current builds are distributed privately. Obtain the reviewed source archive or an approved npm `.tgz` from the operator. There is no public npm registry release or public download supplied by this repository. Remote account access is limited to approved accounts.
+Current Windows builds are distributed privately. Obtain the reviewed source archive or an approved npm `.tgz` from the operator. There is no public npm registry release or public Windows download supplied by this repository, and the ChatGPT plugin is not a public listing.
+
+Website account access follows the deployed `PRIVATE_MODE` setting. `false` enables normal registration and email/password sign-in; `true` limits access to the approved-account allowlist. The account dashboard, paired PCs, device consent, CSRF checks, and single-use request tickets remain protected in both modes. Creating a website account does not install the Windows client or publish the ChatGPT plugin.
 
 Use Windows x64, Node.js 18 or newer with npm, and 64-bit Python 3.11 or newer. The launcher finds a supported Python on PATH or uses `PYCHARM_HARNESS_PYTHON`. Installation downloads the hash-locked Python dependencies from PyPI. PyCharm and Chrome are separate prerequisites for their respective workflows; the optional REA adapter has the newer Node.js requirements listed below.
 
@@ -31,7 +33,7 @@ Use the supplied archive's actual filename if it differs. The `install` command 
 
 After a source build passes release checks, the operator can produce that npm archive with `npm pack --ignore-scripts` from the repository root. GitHub Actions validates a package dry-run; it does not distribute a downloadable build.
 
-The remaining commands use the globally installed `stealth-commander` command. From extracted source, replace it with `node ./bin/stealth-commander.js` while staying in that source directory. `setup` requires existing pairing or an approved account key, updates the installation, and starts local services. It does not create a new remote tunnel.
+The remaining commands use the globally installed `stealth-commander` command. From extracted source, replace it with `node ./bin/stealth-commander.js` while staying in that source directory. `setup` requires existing pairing or an account key, updates the installation, and starts local services. It does not create a new remote tunnel.
 
 To link an account and enable remote access, run `stealth-commander setup --enable-remote` in an interactive terminal. An unpaired PC prompts for the account key without echoing it. Remote requests require current account authorization, paired-PC selection, and a verified single-use request ticket. Commands use the Windows account's file and network permissions. Keep connection URLs and account keys private. The `tunnel` command and the portal's "Enable Temp Tunnel" control also explicitly enable remote access.
 
@@ -118,7 +120,7 @@ Stop only sessions owned by the task. Preserve another session's apps and unsave
 
 The [capability map](skills/stealth-ghost-delegation/references/CAPABILITIES.md) distinguishes direct MCP tools, CLI helpers, and language support. The local plugin includes the PC runtime and operational skill. The account plugin connects to the HTTPS gateway; it does not install a PC runtime.
 
-Gateway, authorization, billing-test and rate-limit source live under `services/`. Their example configuration files contain placeholders; deployment requires the existing private service bindings. Source pushes do not enable public access or production billing. See [release checks](docs/RELEASE.md).
+Gateway, authorization, billing-test and rate-limit source live under `services/`. Their example configuration files contain placeholders; deployment requires the existing private service bindings. Source pushes do not change the deployed signup mode or enable production billing. See [release checks](docs/RELEASE.md).
 
 ## Refresh the local Codex plugin
 

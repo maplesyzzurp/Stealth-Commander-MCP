@@ -9,7 +9,7 @@ import { UPSTREAM_TIMEOUT_MS } from '../src/limits.js';
 const ORIGIN = 'https://stealthcommander.pages.dev';
 const CALLBACK = 'https://client.example/callback';
 const PASSWORD = 'synthetic-password-only';
-let mf, users, oauth, upstreamCalls = [], upstreamMode = 'json', sequence = 0;
+let mf, users, oauth, upstreamCalls = [], assetRequests = [], upstreamMode = 'json', sequence = 0;
 let browserSequence = 0;
 
 before(async () => {
@@ -17,7 +17,7 @@ before(async () => {
     name: 'gateway', modules: true, scriptPath: 'build/worker.js', compatibilityDate: '2026-07-30', compatibilityFlags: ['global_fetch_strictly_public'],
     bindings: { GATEWAY_ORIGIN: ORIGIN, LEGACY_MCP_URL_KEYS_ENABLED: 'true', CONTROL_CSRF_SECRET: 'synthetic-control-secret-at-least-32-chars' }, kvNamespaces: ['STEALTH_AUTH', 'OAUTH_KV'],
     ratelimits: { AUTH_RATE_LIMITER: { namespace_id: '1', simple: { limit: 10, period: 60 } }, REGISTRATION_RATE_LIMITER: { namespace_id: '2', simple: { limit: 10, period: 60 } } },
-    serviceBindings: { ASSETS: () => new Response('synthetic website'), AUTH_STORE: 'auth-store' },
+    serviceBindings: { ASSETS: request => { assetRequests.push(request.url); return new Response('synthetic website'); }, AUTH_STORE: 'auth-store' },
     outboundService: async request => {
       upstreamCalls.push({ url: request.url, method: request.method, headers: Object.fromEntries(request.headers), body: await request.text() });
       const url = new URL(request.url);
@@ -342,7 +342,14 @@ test('an orphaned access token cannot outlive a removed or expired grant', async
 
 test('universal endpoint refuses user-controlled targets, hostile origins and unsafe upstream URLs', async () => {
   const f = await setup(); const tokens = await grant(f);
-  for (const path of ['/mcp/bob-pc', '/mcp?device_id=bob-pc']) assert.equal((await mf.dispatchFetch(ORIGIN + path, { headers: { Authorization: 'Bearer ' + tokens.access_token } })).status, 404);
+  const assetsBefore = assetRequests.length, upstreamBefore = upstreamCalls.length;
+  for (const [path, status] of [['/mcp/bob-pc', 403], ['/mcp?device_id=bob-pc', 404]]) {
+    const denied = await mf.dispatchFetch(ORIGIN + path, { headers: { Authorization: 'Bearer ' + tokens.access_token } });
+    assert.equal(denied.status, status);
+    assert.ok(!(await denied.text()).includes('synthetic website'));
+  }
+  assert.equal(assetRequests.length, assetsBefore);
+  assert.equal(upstreamCalls.length, upstreamBefore);
   assert.equal((await mcp(tokens.access_token, { headers: { Authorization: 'Bearer ' + tokens.access_token, Origin: 'https://evil.example', 'Content-Type': 'application/json' } })).status, 403);
   for (const endpoint of ['http://127.0.0.1/mcp', 'https://evil.example/mcp', 'https://alice-pc.trycloudflare.com/short/mcp', f.alice.devices[0].mcp_url + '?redirect=x']) {
     f.alice.devices[0].mcp_url = endpoint; await users.put('user:' + f.alice.email, JSON.stringify(f.alice));
