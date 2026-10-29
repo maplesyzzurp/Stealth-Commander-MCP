@@ -106,10 +106,10 @@ test('missing or malformed domain challenges fail closed', async () => {
   }
 });
 
-test('only exact informational routes and the original icon are public', async () => {
+test('only exact informational routes, homepage bundles and the original icon are public', async () => {
   const assetRequests = [];
-  const publicPaths = ['/', '/about', '/support', '/icon.png'];
-  const assetPaths = ['/landing', '/about', '/support', '/icon.png'];
+  const publicPaths = ['/', '/about', '/support', '/icon.png', '/app.js', '/app.css'];
+  const assetPaths = ['/landing', '/about', '/support', '/icon.png', '/app.js', '/app.css'];
   const f = await fixture(JSON.stringify([email]), {}, request => {
     const path = new URL(request.url).pathname;
     assetRequests.push({ path, method: request.method });
@@ -123,13 +123,17 @@ test('only exact informational routes and the original icon are public', async (
       const get = await f.mf.dispatchFetch(origin + path, { headers: { Cookie: 'sc_session=synthetic', Authorization: 'Bearer synthetic' } });
       assert.equal(get.status, 200);
       assert.equal(await get.text(), 'PUBLIC_ASSET:' + (path === '/' ? '/landing' : path));
-      assert.equal(get.headers.get('Cache-Control'), 'public, max-age=300');
+      assert.equal(get.headers.get('Cache-Control'), ['/', '/app.js', '/app.css'].includes(path) ? 'no-store' : 'public, max-age=300');
+      if (path === '/app.js') assert.equal(get.headers.get('Content-Type'), 'text/javascript; charset=utf-8');
+      if (path === '/app.css') assert.equal(get.headers.get('Content-Type'), 'text/css; charset=utf-8');
       assert.equal(get.headers.get('Set-Cookie'), null);
       assert.equal(get.headers.get('X-Frame-Options'), 'DENY');
       assert.match(get.headers.get('Content-Security-Policy'), /default-src 'none'/);
       const head = await f.mf.dispatchFetch(origin + path, { method: 'HEAD' });
       assert.equal(head.status, 200);
       assert.equal(await head.text(), '');
+      assert.equal(head.headers.get('Content-Type'), get.headers.get('Content-Type'));
+      assert.equal(head.headers.get('Cache-Control'), get.headers.get('Cache-Control'));
       for (const method of ['POST', 'PUT', 'DELETE', 'OPTIONS']) {
         const denied = await f.mf.dispatchFetch(origin + path, { method });
         assert.equal(denied.status, 405);
@@ -138,7 +142,7 @@ test('only exact informational routes and the original icon are public', async (
       assert.equal((await f.call(path + '?ignored=1')).status, 404);
     }
     assert.deepEqual(assetRequests, assetPaths.flatMap(path => [{ path, method: 'GET' }, { path, method: 'HEAD' }]));
-    for (const path of ['/landing', '/landing.html', '/about.html', '/support.html', '/about/', '/support/', '/icon.png/', '/index.html', '/download/installer.zip', '/registry.json']) {
+    for (const path of ['/landing', '/landing.html', '/about.html', '/support.html', '/about/', '/support/', '/icon.png/', '/index.html', '/download/installer.zip', '/registry.json', '/app.js/', '/app.css/', '/APP.js', '/assets/app.js', '/app.js.map', '/app.css.map', '/web/App.jsx', '/build/site/app.js']) {
       const denied = await f.call(path);
       assert.equal(denied.status, 403);
       assert.ok(!(await denied.text()).includes('PUBLIC_ASSET'));
@@ -152,16 +156,39 @@ test('only exact informational routes and the original icon are public', async (
   } finally { await f.mf.dispose(); }
 });
 
-test('informational asset redirects and missing files fail closed', async () => {
+test('informational and homepage bundle redirects and missing files fail closed', async () => {
   const f = await fixture(JSON.stringify([email]), {}, request => new URL(request.url).pathname === '/about'
     ? Response.redirect(origin + '/about', 307)
     : new Response('missing', { status: 404 }));
   try {
-    for (const path of ['/about', '/support']) {
+    for (const path of ['/about', '/support', '/app.js', '/app.css']) {
       const response = await f.call(path);
       assert.equal(response.status, 404);
       assert.equal(response.headers.get('Location'), null);
       assert.deepEqual(await response.json(), { error: 'Public page not found.' });
+    }
+  } finally { await f.mf.dispose(); }
+});
+
+test('homepage CSP permits the bundled application without granting script execution to informational pages', async () => {
+  const f = await fixture(JSON.stringify([email]));
+  const directives = response => new Map(response.headers.get('Content-Security-Policy').split(';').map(part => part.trim().split(/\s+/)).filter(([name]) => name).map(([name, ...values]) => [name, values]));
+  try {
+    const homepage = await f.call('/');
+    const policy = directives(homepage);
+    assert.deepEqual(policy.get('default-src'), ["'none'"]);
+    assert.deepEqual(policy.get('script-src'), ["'self'"]);
+    assert.deepEqual(policy.get('connect-src'), ["'self'"]);
+    assert.deepEqual(policy.get('style-src'), ["'self'", "'unsafe-inline'"]);
+    assert.deepEqual(policy.get('img-src'), ["'self'"]);
+    assert.deepEqual(policy.get('frame-ancestors'), ["'none'"]);
+    assert.deepEqual(policy.get('base-uri'), ["'none'"]);
+    for (const path of ['/about', '/support']) {
+      const restricted = directives(await f.call(path));
+      assert.deepEqual(restricted.get('default-src'), ["'none'"]);
+      assert.equal(restricted.has('script-src'), false);
+      assert.equal(restricted.has('connect-src'), false);
+      assert.deepEqual(restricted.get('style-src'), ["'unsafe-inline'"]);
     }
   } finally { await f.mf.dispose(); }
 });
@@ -173,7 +200,7 @@ test('public pages and sign-in remain readable during account-store failure whil
       ASSETS: request => new Response('PUBLIC_ASSET:' + new URL(request.url).pathname)
     }, outboundService() { throw new Error('No external network.'); } });
     try {
-      for (const path of ['/', '/about', '/support', '/sign-in']) assert.equal((await mf.dispatchFetch(origin + path)).status, 200);
+      for (const path of ['/', '/about', '/support', '/sign-in', '/app.js', '/app.css']) assert.equal((await mf.dispatchFetch(origin + path)).status, 200);
       for (const path of ['/dashboard', '/index.html', '/api/auth/me', '/mcp']) assert.equal((await mf.dispatchFetch(origin + path)).status, 503);
       assert.equal((await mf.dispatchFetch(origin + '/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).status, 503);
     } finally { await mf.dispose(); }

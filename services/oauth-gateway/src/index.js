@@ -9,7 +9,7 @@ import { signUpPage } from './sign-up-page.js';
 
 const CONTROL = 'pc:control';
 const SESSION_SECONDS = 43200;
-const PUBLIC_INFORMATION_PATHS = new Map([['/', '/landing'], ['/about', '/about'], ['/support', '/support'], ['/icon.png', '/icon.png']]);
+const PUBLIC_INFORMATION_PATHS = new Map([['/', '/landing'], ['/about', '/about'], ['/support', '/support'], ['/icon.png', '/icon.png'], ['/app.js', '/app.js'], ['/app.css', '/app.css']]);
 const htmlEscape = value => String(value).replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
 const digest = async value => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))), b => b.toString(16).padStart(2, '0')).join('');
 const json = (status, error, headers = {}) => Response.json({ error }, { status, headers: { 'Cache-Control': 'no-store', ...headers } });
@@ -339,8 +339,13 @@ export default {
         if (asset.status !== 200) return json(404, 'Public page not found.');
         const headers = new Headers(asset.headers);
         headers.delete('Set-Cookie');
-        headers.set('Cache-Control', 'public, max-age=300');
-        headers.set('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; form-action 'none'; frame-ancestors 'none'; base-uri 'none'");
+        const homepage = path === '/', bundle = path === '/app.js' || path === '/app.css';
+        if (path === '/app.js') headers.set('Content-Type', 'text/javascript; charset=utf-8');
+        if (path === '/app.css') headers.set('Content-Type', 'text/css; charset=utf-8');
+        headers.set('Cache-Control', homepage || bundle ? 'no-store' : 'public, max-age=300');
+        headers.set('Content-Security-Policy', homepage
+          ? "default-src 'none'; script-src 'self'; connect-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; form-action 'none'; frame-ancestors 'none'; base-uri 'none'"
+          : "default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; form-action 'none'; frame-ancestors 'none'; base-uri 'none'");
         headers.set('Referrer-Policy', 'no-referrer');
         headers.set('X-Content-Type-Options', 'nosniff');
         headers.set('X-Frame-Options', 'DENY');

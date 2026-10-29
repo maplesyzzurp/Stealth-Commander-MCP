@@ -4,161 +4,29 @@
   <meta charset="utf-8">
   <meta name="author" content="nexusmap.ai">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Stealth Commander connects your paired Windows PC to a compatible chat client for authorized commands, hidden sessions, and window observations.">
-  <meta name="theme-color" content="#07090c">
-  <title>Stealth Commander · Control your PC from chat</title>
+  <meta name="description" content="Connect your Windows PC with Stealth Commander. Create an account, prepare your client, and choose a paired PC through OAuth.">
+  <meta name="theme-color" content="#080b0b">
+  <title>Stealth Commander</title>
   <link rel="icon" type="image/png" href="/icon.png">
-  <style>
-:root { color-scheme: dark; --bg: #07090c; --panel: #10141a; --line: #252d38; --text: #f3f6fa; --muted: #a9b4c3; --accent: #8bbcff; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-* { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
-body { margin: 0; background: var(--bg); color: var(--text); font-size: 16px; line-height: 1.65; }
-a { color: var(--accent); text-underline-offset: .22em; }
-a:hover { color: #c5ddff; }
-a:focus-visible, summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 5px; border-radius: 3px; }
-img { max-width: 100%; height: auto; }
-.shell { width: min(1104px, calc(100% - 48px)); margin-inline: auto; }
-.skip-link { position: absolute; top: -100px; left: 24px; z-index: 10; padding: 10px 18px; background: #fff; color: #111; }
-.skip-link:focus { top: 12px; }
-.site-header { border-bottom: 1px solid var(--line); }
-.header-inner { min-height: 88px; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
-.brand { display: inline-flex; align-items: center; gap: 12px; color: var(--text); text-decoration: none; font-size: 15px; font-weight: 680; letter-spacing: -.02em; }
-.brand-icon { display: block; width: 40px; height: 40px; padding: 5px; border-radius: 10px; background: #f1f4f8; }
-.brand small { display: block; color: var(--muted); font-size: 11px; font-weight: 450; letter-spacing: .03em; line-height: 1.4; }
-.site-nav { display: flex; align-items: center; flex-wrap: wrap; gap: 25px; font-size: 13px; }
-.site-nav a { color: var(--muted); text-decoration: none; }
-.site-nav a[aria-current="page"], .site-nav a:hover { color: var(--text); }
-.site-nav .nav-signin { padding: 8px 13px; border: 1px solid #374353; border-radius: 7px; color: var(--text); }
-.site-nav .nav-signup { padding: 8px 13px; border: 1px solid var(--accent); border-radius: 7px; background: var(--accent); color: #0b1729; font-weight: 600; }
-.site-nav .nav-signup:hover { background: #b3d4ff; border-color: #b3d4ff; color: #0b1729; }
-.hero { padding: 82px 0 58px; }
-.hero-grid { display: grid; grid-template-columns: minmax(0, 1fr) 220px; align-items: center; gap: 80px; }
-.eyebrow { margin: 0 0 20px; color: var(--accent); font-size: 12px; font-weight: 650; letter-spacing: .11em; text-transform: uppercase; }
-h1, h2, h3, p { margin-top: 0; }
-h1 { margin-bottom: 23px; max-width: 800px; font-size: clamp(36px, 5vw, 62px); line-height: 1.08; letter-spacing: -.055em; font-weight: 650; text-wrap: balance; }
-h2 { margin-bottom: 14px; font-size: clamp(24px, 3vw, 32px); line-height: 1.2; letter-spacing: -.035em; font-weight: 620; text-wrap: balance; }
-h3 { margin-bottom: 10px; font-size: 18px; line-height: 1.35; letter-spacing: -.02em; font-weight: 630; }
-p { margin-bottom: 18px; }
-.lead { max-width: 680px; color: #bbc5d2; font-size: 18px; line-height: 1.65; }
-.hero-emblem { margin: 0; text-align: center; }
-.hero-emblem .art { display: grid; place-items: center; width: 220px; aspect-ratio: 1; background: #f1f4f8; border: 1px solid #fff; border-radius: 32px; padding: 28px; }
-.hero-emblem img { display: block; width: 164px; height: 164px; object-fit: contain; }
-.hero-emblem figcaption { margin-top: 17px; color: var(--muted); font-size: 12px; letter-spacing: .025em; }
-.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 28px; }
-.button { display: inline-flex; justify-content: center; align-items: center; min-height: 46px; padding: 11px 19px; border: 1px solid #8bbcff; border-radius: 8px; background: #8bbcff; color: #0b1729; font-size: 14px; font-weight: 650; text-decoration: none; }
-.button:hover { background: #b3d4ff; border-color: #b3d4ff; color: #0b1729; }
-.button.secondary { background: transparent; border-color: #374353; color: var(--text); }
-.button.secondary:hover { background: #161d27; border-color: #6b7c94; }
-.access-note { display: flex; align-items: flex-start; gap: 13px; padding: 18px 20px; border: 1px solid var(--line); border-left: 3px solid #8bbcff; border-radius: 8px; background: #0d1219; color: var(--muted); font-size: 14px; }
-.access-note strong { color: var(--text); font-weight: 600; }
-.access-note p { margin: 0; }
-.section { padding: 56px 0; border-bottom: 1px solid var(--line); }
-.section-intro { max-width: 740px; margin-bottom: 25px; color: var(--muted); }
-.cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
-.card { background: var(--panel); border: 1px solid var(--line); border-radius: 13px; padding: 26px; }
-.card .number { display: block; margin-bottom: 25px; color: var(--accent); font: 500 12px/1.3 ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: .08em; }
-.card p { margin-bottom: 0; color: var(--muted); font-size: 14px; }
-.split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 64px; }
-ul, ol { padding-left: 22px; }
-li { padding-left: 3px; margin-bottom: 9px; }
-.checklist { color: #c0c9d5; }
-.steps { list-style: none; counter-reset: step; padding: 0; margin-bottom: 0; }
-.steps li { position: relative; counter-increment: step; padding-left: 45px; margin-bottom: 24px; }
-.steps li:last-child { margin-bottom: 0; }
-.steps li::before { content: counter(step, decimal-leading-zero); position: absolute; left: 0; top: 2px; color: var(--accent); font: 500 12px/1.6 ui-monospace, SFMono-Regular, Consolas, monospace; }
-.steps strong { display: block; font-weight: 600; }
-.steps p { margin: 3px 0 0; color: var(--muted); font-size: 14px; }
-.muted { color: var(--muted); }
-.small { font-size: 13px; }
-.boundary { max-width: 850px; }
-.boundary p:last-child { margin-bottom: 0; }
-.support-hero { max-width: 830px; }
-.support-grid { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 44px; }
-.help-list { margin: 8px 0 0; }
-.help-list details { border-bottom: 1px solid var(--line); }
-.help-list summary { cursor: pointer; padding: 21px 0; font-size: 16px; font-weight: 580; }
-.help-list details p { padding-right: 20px; color: var(--muted); font-size: 14px; }
-.report-panel { align-self: start; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 28px; }
-.report-panel ul { color: #c0c9d5; font-size: 14px; }
-.report-panel .button { margin-top: 8px; }
-.privacy-note { margin-top: 26px; padding-top: 24px; border-top: 1px solid #35404f; }
-.privacy-note h3 { font-size: 16px; }
-.privacy-note p { margin-bottom: 0; color: #c0c9d5; font-size: 14px; }
-.footer-inner { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px; padding: 27px 0 35px; color: #91a0b3; font-size: 12px; }
-.footer-links { display: flex; flex-wrap: wrap; gap: 20px; }
-.footer-links a { color: #aebdd0; text-decoration: none; }
-.footer-links a:hover { text-decoration: underline; }
-@media (max-width: 800px) { .hero-grid { grid-template-columns: minmax(0, 1fr) 150px; gap: 35px; } .hero-emblem .art { width: 150px; padding: 20px; border-radius: 24px; } .hero-emblem img { width: 110px; height: 110px; } .cards { gap: 12px; } .card { padding: 20px; } .split, .support-grid { gap: 32px; } }
-@media (max-width: 620px) { .shell { width: calc(100% - 36px); } .header-inner { min-height: 80px; flex-wrap: wrap; padding-block: 18px; gap: 17px; } .site-nav { width: 100%; gap: 14px; } .site-nav .nav-signin { margin-left: auto; } .hero { padding: 48px 0 34px; } .hero-grid { grid-template-columns: 1fr; gap: 30px; } .hero-emblem { display: none; } .lead { font-size: 16px; } .cards, .split, .support-grid { grid-template-columns: 1fr; gap: 20px; } .card .number { margin-bottom: 14px; } .section { padding: 38px 0; } .access-note { padding: 16px; } .report-panel { padding: 23px; } }
-@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
-</style>
+  <link rel="stylesheet" href="/app.css">
 </head>
 <body>
-  <a class="skip-link" href="#main">Skip to content</a>
-  <header class="site-header">
-    <div class="shell header-inner">
-      <a class="brand" href="/" aria-label="Stealth Commander home" aria-current="page">
-        <img class="brand-icon" src="/icon.png" width="40" height="40" alt="">
-        <span>Stealth Commander</span>
-      </a>
-      <nav class="site-nav" aria-label="Main navigation">
-        <a href="/about">About</a>
-        <a href="/support">Support</a>
-        <a class="nav-signin" href="/sign-in">Sign in</a>
-        <a class="nav-signup" href="/sign-up">Create account</a>
+  <div id="root">
+    <main class="fallback">
+      <img src="/icon.png" width="72" height="72" alt="Stealth Commander ninja">
+      <h1>Stealth Commander</h1>
+      <p>Connect your Windows PC to a compatible MCP client. Create an account, install the privately distributed Windows client, and select your paired PC through OAuth.</p>
+      <nav aria-label="Account and product navigation">
+        <a class="button button-primary" href="/sign-up">Create account</a>
+        <a class="button" href="/sign-in">Sign in</a>
+        <a class="button" href="/dashboard">Dashboard</a>
+        <a class="button" href="/about">About</a>
+        <a class="button" href="/support">Support</a>
       </nav>
-    </div>
-  </header>
-  <main id="main" class="shell">
-    <section class="hero hero-grid" aria-labelledby="page-title">
-      <div>
-        <p class="eyebrow">Your Windows PC, connected</p>
-        <h1 id="page-title">Control your PC<br>from chat.</h1>
-        <p class="lead">Connect your paired Windows PC to a compatible chat client. Check its status, run commands, and use supported applications in hidden sessions.</p>
-        <div class="actions">
-          <a class="button" href="/sign-up">Create account</a>
-          <a class="button secondary" href="/sign-in">Sign in</a>
-        </div>
-      </div>
-      <figure class="hero-emblem">
-        <div class="art"><img src="/icon.png" width="164" height="164" alt="Stealth Commander ninja"></div>
-        <figcaption>Stealth Commander</figcaption>
-      </figure>
-    </section>
-
-    <aside class="access-note" aria-label="Current availability">
-      <p><strong>Account creation is open.</strong> The Windows client is currently distributed privately, and the ChatGPT plugin is not publicly listed. See <a href="/about#setup-title">what you need to connect a PC</a>.</p>
-    </aside>
-
-    <section class="section" aria-labelledby="capabilities-title">
-      <h2 id="capabilities-title">Use your paired Windows PC.</h2>
-      <p class="section-intro">Choose the paired PC you want to use. Its installed client provides the tools for your task.</p>
-      <div class="cards">
-        <article class="card"><span class="number">01 / CHECK</span><h3>Know what is ready</h3><p>Check runtime prerequisites and the status of your owned hidden desktop sessions before starting work.</p></article>
-        <article class="card"><span class="number">02 / ACT</span><h3>Run a defined task</h3><p>Run authorized commands or launch supported applications in their own hidden sessions while preserving your normal desktop input.</p></article>
-        <article class="card"><span class="number">03 / OBSERVE</span><h3>See the result</h3><p>Inspect available session telemetry and cached window images with their capture time and session identity.</p></article>
-      </div>
-    </section>
-
-    <section class="section split" aria-labelledby="connection-title">
-      <div>
-        <h2 id="connection-title">Choose the PC to connect.</h2>
-        <p class="muted">The connection uses account sign-in and explicit device consent. Pair a Windows PC you own or administer, then keep its client online while you work.</p>
-        <p class="muted">Hidden sessions separate application input from your normal desktop. Commands retain the Windows account’s file and network permissions.</p>
-        <div class="actions"><a class="button secondary" href="/dashboard">Open dashboard</a><a href="/support">Get connection help</a></div>
-      </div>
-      <ol class="steps" aria-label="Getting connected">
-        <li><strong>Pair your PC locally</strong><p>Use your privately supplied Windows client to pair the PC and enable remote access.</p></li>
-        <li><strong>Choose it in your chat client</strong><p>Connect Stealth Commander through OAuth, sign in, and select the paired PC you want to authorize.</p></li>
-        <li><strong>Check readiness and begin</strong><p>Inspect the tools your client exposes, then start a supported task. <a href="/about#scope-title">Review the operating scope</a> for capture and application limits.</p></li>
-      </ol>
-    </section>
-  </main>
-  <footer class="shell">
-    <div class="footer-inner">
-      <span>Stealth Commander</span>
-      <nav class="footer-links" aria-label="Footer navigation"><a href="/about">About</a><a href="/support">Support</a><a href="/sign-in">Sign in</a><a href="/sign-up">Create account</a></nav>
-    </div>
-  </footer>
+      <p>Current client: Windows x64. The Windows client is distributed privately, and the ChatGPT plugin is not publicly listed.</p>
+      <p>Mac, Linux, and more stealth tools coming soon.</p>
+    </main>
+  </div>
+  <script type="module" src="/app.js"></script>
 </body>
 </html>

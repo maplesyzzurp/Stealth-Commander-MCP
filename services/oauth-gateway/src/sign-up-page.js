@@ -3,38 +3,38 @@ const document = String.raw`<!doctype html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#07090c">
+  <meta name="theme-color" content="#080b0b">
   <title>Create an account | Stealth Commander</title>
   <link rel="icon" type="image/png" href="/icon.png">
   <style>
-    :root { color-scheme: dark; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #07090c; color: #f3f6fa; }
+    :root { --bg: #080b0b; --panel: #101615; --border: #293632; --text: #e9f1ed; --muted: #98aaa1; --accent: #93e5bb; color-scheme: dark; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
     * { box-sizing: border-box; }
     body { margin: 0; min-height: 100vh; font-size: 16px; line-height: 1.6; }
-    a { color: #8bbcff; text-underline-offset: .22em; }
-    a:hover { color: #c5ddff; }
-    a:focus-visible, button:focus-visible, input:focus-visible { outline: 3px solid #8bbcff; outline-offset: 4px; }
+    a { color: var(--accent); text-underline-offset: .22em; }
+    a:hover { color: #b2f1d0; }
+    a:focus-visible, button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
     .shell { width: min(1104px, calc(100% - 40px)); margin-inline: auto; }
-    header { border-bottom: 1px solid #252d38; }
+    header { border-bottom: 1px solid var(--border); }
     .header-inner { min-height: 88px; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
-    .brand { display: inline-flex; align-items: center; gap: 12px; color: #f3f6fa; text-decoration: none; font-size: 15px; font-weight: 650; }
-    .brand img { width: 40px; height: 40px; padding: 5px; border-radius: 10px; background: #f1f4f8; }
+    .brand { display: inline-flex; align-items: center; gap: 12px; color: var(--text); text-decoration: none; font-size: 15px; font-weight: 650; }
+    .brand img { width: 40px; height: 40px; padding: 5px; border-radius: 8px; background: #edf2ef; }
     nav { display: flex; gap: 24px; font-size: 13px; }
-    nav a { color: #a9b4c3; text-decoration: none; }
+    nav a { color: var(--muted); text-decoration: none; }
     main { padding: 70px 20px; }
-    .card { max-width: 460px; margin: auto; padding: 36px; border: 1px solid #252d38; border-radius: 16px; background: #10141a; }
-    .eyebrow { margin: 0 0 14px; color: #8bbcff; font-size: 12px; font-weight: 650; letter-spacing: .1em; text-transform: uppercase; }
+    .card { max-width: 460px; margin: auto; padding: 36px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); }
+    .eyebrow { margin: 0 0 14px; color: var(--accent); font: 500 11px/1.5 ui-monospace, "SFMono-Regular", Consolas, monospace; letter-spacing: .1em; text-transform: uppercase; }
     h1 { margin: 0 0 14px; font-size: 36px; line-height: 1.15; letter-spacing: -.04em; }
-    .intro { margin: 0 0 28px; color: #a9b4c3; font-size: 15px; }
+    .intro { margin: 0 0 28px; color: var(--muted); font-size: 15px; }
     label { display: block; margin: 18px 0 7px; font-size: 14px; font-weight: 600; }
-    input { width: 100%; min-height: 46px; padding: 11px 12px; border: 1px solid #45546a; border-radius: 8px; background: #07090c; color: #f3f6fa; font: inherit; }
-    .hint { margin: 7px 0 0; color: #a9b4c3; font-size: 13px; }
-    button { width: 100%; min-height: 46px; margin-top: 26px; border: 1px solid #8bbcff; border-radius: 8px; background: #8bbcff; color: #0b1729; font-family: inherit; font-size: 15px; font-weight: 650; line-height: 1.5; cursor: pointer; }
-    button:hover { background: #b3d4ff; }
+    input { width: 100%; min-height: 46px; padding: 11px 12px; border: 1px solid #52685d; border-radius: 6px; background: var(--bg); color: var(--text); font: inherit; }
+    .hint { margin: 7px 0 0; color: var(--muted); font-size: 13px; }
+    button { width: 100%; min-height: 46px; margin-top: 26px; border: 1px solid var(--accent); border-radius: 6px; background: var(--accent); color: #09150e; font-family: inherit; font-size: 15px; font-weight: 650; line-height: 1.5; cursor: pointer; }
+    button:hover { background: #b2f1d0; }
     button:disabled { opacity: .65; cursor: wait; }
-    #result { min-height: 25px; margin: 18px 0 0; color: #f3d3b2; font-size: 14px; overflow-wrap: anywhere; }
+    #result { min-height: 25px; margin: 18px 0 0; color: #e6c6a4; font-size: 14px; overflow-wrap: anywhere; }
     #sign-in-link { font-size: 14px; }
-    .help { margin: 20px 0 0; padding-top: 22px; border-top: 1px solid #252d38; color: #a9b4c3; font-size: 13px; }
-    footer { padding: 0 20px 32px; color: #91a0b3; text-align: center; font-size: 12px; }
+    .help { margin: 20px 0 0; padding-top: 22px; border-top: 1px solid var(--border); color: var(--muted); font-size: 13px; }
+    footer { padding: 0 20px 32px; color: var(--muted); text-align: center; font-size: 12px; }
     @media (max-width: 520px) { .header-inner { min-height: 80px; flex-wrap: wrap; padding-block: 16px; gap: 14px; } main { padding: 36px 18px; } .card { padding: 27px 23px; } h1 { font-size: 32px; } }
   </style>
 </head>

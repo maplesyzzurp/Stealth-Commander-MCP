@@ -8,8 +8,10 @@
 *{box-sizing:border-box}body{margin:0;padding:12px 14px;max-width:1360px;margin-inline:auto}
 header{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:11px 14px;background:#10141d;border:1px solid #222a3d;border-radius:11px;margin-bottom:10px}
 .brand{display:flex;align-items:center;gap:9px;font-weight:700;font-size:15px}
-.dot{width:9px;height:9px;border-radius:99px;background:#2ea043;box-shadow:0 0 8px #2ea043}
-.dot.warn{background:#d29922;box-shadow:0 0 8px #d29922}
+.brand-home{display:inline-flex;border-radius:5px}
+.brand-home:focus-visible{outline:3px solid #93e5bb;outline-offset:4px}
+.dot{width:9px;height:9px;border-radius:99px;background:#f85149;box-shadow:0 0 8px #f85149}
+.dot.connected{background:#3fb950;box-shadow:0 0 8px #3fb950}
 .nav{display:flex;gap:6px;flex-wrap:wrap}
 .tab{background:#161c28;color:#9fb0c7;border:1px solid #263044;padding:6px 12px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer}
 .tab.active{background:#1f6feb;color:#fff;border-color:#388bfd}
@@ -42,7 +44,7 @@ th{color:#8b9bb4;font-size:11px;text-transform:uppercase}
 #toast{position:fixed;bottom:14px;right:14px;background:#1f6feb;color:#fff;padding:8px 13px;border-radius:8px;font-size:12px;font-weight:600;display:none;z-index:99}
 </style></head><body>
 <header>
-  <div class="brand"><img src="/icon.png" width="28" height="28" alt="Stealth Commander ninja"><span class="dot" id="hdot"></span><span id="host">Stealth Commander</span></div>
+  <div class="brand"><a class="brand-home" id="brandHome" href="/" aria-label="Stealth Commander home"><img src="/icon.png" width="28" height="28" alt=""></a><span class="dot" id="hdot" data-state="disconnected" role="status" aria-label="Site connection not confirmed" title="Site connection not confirmed"></span><span id="host">Stealth Commander</span></div>
   <nav class="nav">
     <button class="tab active" onclick="showTab('devices',this)">Devices</button>
     <button class="tab" onclick="showTab('connect',this)">Connect AI / MCP</button>
@@ -269,6 +271,55 @@ th{color:#8b9bb4;font-size:11px;text-transform:uppercase}
   <p>Account creation is open. The Windows client is currently distributed privately, and the ChatGPT plugin is not publicly listed. Select a PC paired to your signed-in account.</p>
 </div>
 <div id="toast"></div>
+<script id="site-connection">
+(() => {
+  const indicator=document.getElementById('hdot');
+  let inFlight=null,refreshQueued=false;
+  function setConnection(connected){
+    indicator.className=connected?'dot connected':'dot';
+    indicator.setAttribute('data-state',connected?'connected':'disconnected');
+    const label=connected?'Site connected: signed in':'Site disconnected or signed out';
+    indicator.setAttribute('aria-label',label);
+    indicator.setAttribute('title',label);
+  }
+  function disconnect(){
+    refreshQueued=false;
+    setConnection(false);
+    if(inFlight)inFlight.abort();
+  }
+  function requestCheck(){
+    if(navigator.onLine===false){disconnect();return;}
+    if(document.visibilityState!=='visible')return;
+    if(inFlight){refreshQueued=true;return;}
+    void checkConnection();
+  }
+  async function checkConnection(){
+    const controller=new AbortController();
+    inFlight=controller;
+    const timeout=setTimeout(()=>{setConnection(false);controller.abort();},15000);
+    try{
+      const response=await fetch('/api/account/session',{
+        method:'GET',credentials:'same-origin',cache:'no-store',redirect:'error',signal:controller.signal
+      });
+      if(!controller.signal.aborted&&navigator.onLine!==false)setConnection(response.status===200);
+    }catch(_){setConnection(false);}
+    finally{
+      clearTimeout(timeout);
+      inFlight=null;
+      if(refreshQueued){refreshQueued=false;requestCheck();}
+    }
+  }
+  window.addEventListener('offline',disconnect);
+  window.addEventListener('online',requestCheck);
+  window.addEventListener('focus',requestCheck);
+  document.addEventListener('visibilitychange',requestCheck);
+  window.addEventListener('stealth-site-session-ended',disconnect);
+  window.addEventListener('stealth-site-session-changed',()=>{disconnect();requestCheck();});
+  setInterval(requestCheck,30000);
+  setConnection(false);
+  requestCheck();
+})();
+</script>
 <script>
 let selectedDeviceId='',authMode='login',currentAccount=null,controlCsrf='',billingCsrf='',accountEpoch=0,polling=false;
 const pendingRequests=new Set();
@@ -378,6 +429,7 @@ function jsArg(value){
 function renderAccountState(user){
   if((currentAccount?.email||'')!==(user?.email||''))clearPrivateState();
   currentAccount=user||null;
+  window.dispatchEvent(new Event(user?'stealth-site-session-changed':'stealth-site-session-ended'));
   if(!user||!user.devices?.some(d=>d.device_id===selectedDeviceId))selectedDeviceId='';
   const badge=document.getElementById('acctBadge');
   const btn=document.getElementById('acctBtn');
@@ -582,7 +634,6 @@ async function poll(){
     document.getElementById('k-tun').textContent=tunOk?'Authenticated remote access':'Local only';
     document.getElementById('tstatus').textContent=tunOk?'REMOTE ACCESS (AUTH REQUIRED)':'LOCAL ONLY';
     document.getElementById('tstatus').className=tunOk?'pill warn':'pill ok';
-    document.getElementById('hdot').className='dot';
     const killBtn=document.getElementById('killTunBtn');
     if(killBtn)killBtn.style.display=tunOk?'inline-block':'none';
     document.getElementById('openDash').removeAttribute('href');
