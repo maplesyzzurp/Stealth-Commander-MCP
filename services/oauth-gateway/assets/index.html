@@ -16,6 +16,9 @@ input,select{flex:1;min-width:130px;max-width:100%;background:#0b0711;border:1px
 .header-github{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-width:38px;min-height:38px;padding:8px 10px;margin-left:auto;border:1px solid #443052;border-radius:6px;color:#e6d6f1;text-decoration:none;font-size:11px;font-weight:600;flex-shrink:0}.header-github svg{width:20px;height:20px;fill:currentColor}.header-github:hover{color:#fff;border-color:#a855f7;background:#261336}.pills{margin-left:0}.pills #acctBtn,.pills #acctBtn.ok{background:transparent;border-color:#443052;color:#c9b4d9;font-weight:500}.device-tools{border:1px solid var(--border);border-radius:7px;background:var(--panel);overflow:hidden;margin-bottom:16px}.device-tools>summary{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:17px 19px;cursor:pointer;list-style:none;color:#cdb5df;font-size:12px;font-weight:500}.device-tools>summary::-webkit-details-marker{display:none}.device-tools>summary::after{content:'+';color:#c084fc;font:20px/1 var(--mono)}.device-tools[open]>summary::after{content:'−'}.device-tools>summary:focus-visible{outline:2px solid #c582ff;outline-offset:-5px}.device-tools>summary small{display:block;margin-top:5px;font:9px/1.4 var(--mono);color:#9482a4}.device-tools>.panel{border:0;border-top:1px solid var(--border);border-radius:0}.device-tools .device-actions{justify-content:flex-start}.device-tools .device-actions button{font-size:10px}.device-tools .device-actions #killTunBtn{flex-basis:auto}body[data-view="devices"] #setupBanner{display:none!important}
 @media(max-width:760px){.header-github{padding:8px;min-width:38px;min-height:38px}.header-github span{display:none}.device-tools>summary{padding:16px}.device-tools>summary small{font-size:8px}.device-tools .device-actions button{flex:1 1 140px}.pills #acctBtn{min-width:0}.pills{margin-left:0}}
 #setupBanner{display:none!important}summary{cursor:pointer}#manualClientSetup>summary{font-size:13px;color:#d8b1f2;padding:4px 0}
+#view-devices>.kpis,.pills #tstatus{display:none}.advanced-settings{margin:16px 0;border:1px solid #44304e;border-radius:5px;background:#100c16f5;overflow:hidden}.advanced-settings>summary{padding:18px 22px;font-size:16px;color:#d7b4ed}.advanced-settings>.panel{border:0;border-top:1px solid #44304e;border-radius:0}.advanced-settings>.grid{padding:16px;margin:0}
+body{background:linear-gradient(90deg,#09060f33,#09060fe8 22%,#09060fe8 78%,#09060f33),url('/jdm-stickerwall.svg') center top/1600px auto repeat-y,#09060f;font-size:16px;line-height:1.6}header{background:#0d0912f5;padding:22px 32px 0}.brand{font-size:22px}.brand-home img{width:40px;height:40px}.tab{font-size:14px;padding:16px 3px 18px}.nav{gap:26px}.pills{font-size:14px}.pills #acctBtn{max-width:260px}.pills #tstatus{font-size:11px}.dashboard-main{padding:34px 32px 26px}.view-heading h1,.section-title{font-size:34px}.panel{background:#100c16f8;padding:26px;gap:18px}.panel h3{font-size:14px;letter-spacing:.025em;text-transform:none}.panel>p{font-size:15px!important;line-height:1.75}.panel summary{font-size:16px;padding:6px 0}.panel details>p{font-size:14px;line-height:1.75}button,a.btn{font-size:14px;min-height:44px;padding:11px 16px}.header-github{font-size:14px;min-height:44px}input,select{font-size:16px;min-height:44px;padding:11px 13px}.row>label{font-size:14px!important}pre,code.blk{font-size:13px;padding:16px}.kpi{padding:22px}.kpi .lbl{font-size:11px}.kpi .val{font-size:22px}table{font-size:14px}th{font-size:11px}th,td{padding:14px 12px}.pill{font-size:11px}.device-tools>summary{font-size:16px;padding:20px 24px}.device-tools .device-actions button{font-size:14px}.dashboard-footer{background:#0d0912f5;font-size:12px;padding:22px 32px}#toast{font-size:14px}.card-hd{font-size:16px}.meta{font-size:12px}
+@media(max-width:760px){body{background-size:auto,900px auto}.dashboard-main{padding:26px 18px}.brand{font-size:18px}.brand-home img{width:34px;height:34px}header{padding:18px 18px 0}.tab{font-size:13px}.nav{gap:22px}.panel{padding:20px}.panel h3{font-size:14px}button,a.btn{font-size:14px;min-height:44px}.view-heading h1,.section-title{font-size:30px}.kpi{padding:18px}.kpi .val{font-size:20px}.kpi .lbl{font-size:10px}table{font-size:13px}th{font-size:10px}pre,code.blk{font-size:12px}.dashboard-footer{padding:20px 18px}.device-tools>summary{font-size:16px}.pills #acctBtn{max-width:none}.panel h3 .row button{font-size:13px}}
 </style></head><body data-view="devices">
 <header>
   <div class="brand"><a class="brand-home" id="brandHome" href="/" aria-label="Stealth Commander home"><img src="/icon.png" width="28" height="28" alt=""></a><span class="dot" id="hdot" data-state="disconnected" role="status" aria-label="Site connection not confirmed" title="Site connection not confirmed"></span><div class="brand-copy"><span id="host">Stealth Commander</span></div></div>
@@ -59,10 +62,17 @@ input,select{flex:1;min-width:130px;max-width:100%;background:#0b0711;border:1px
 </section>
 
 <section id="view-connect" class="view">
-  <h1 class="section-title">Connect your tools.</h1>
-  <div class="panel" style="margin-bottom:10px">
+  <h1 class="section-title">Connect your assistant.</h1>
+  <div class="grid">
+  <div class="panel">
+    <h3><span>Connect with your account</span><button class="sec" onclick="copyText(document.getElementById('mcpUrlCode').textContent,'Copied Remote MCP URL!')">Copy URL</button></h3>
+    <p>Add this MCP URL in your assistant, sign in with OAuth, and choose your paired PC.</p>
+    <code class="blk" id="mcpUrlCode"></code>
+    <p>Your Windows client must be running. No API key is needed for this OAuth connection.</p>
+  </div>
+  <div class="panel">
     <h3><span>Agent instructions</span><button id="copyAgentMd" onclick="copyText(document.getElementById('agentMdSnippet').textContent,'Copied AGENTS.md instructions.')">Copy AGENTS.md</button></h3>
-    <p>Paste this section into your project's <code>AGENTS.md</code>, keeping its existing instructions. Connect MCP first; this text does not install the tools.</p>
+    <p>Optional: add these instructions to your project's <code>AGENTS.md</code> after connecting MCP. Keep your existing instructions.</p>
     <details><summary>Preview instructions</summary><pre id="agentMdSnippet">## Stealth Commander
 
 Use Stealth Commander for authorized work on the selected Windows PC.
@@ -77,7 +87,10 @@ Use Stealth Commander for authorized work on the selected Windows PC.
 Remote MCP: https://stealthcommander.pages.dev/mcp
 Use OAuth and explicitly select a paired PC. The Windows client must be installed and online. Never put account keys or private connection URLs in this file.</pre></details>
   </div>
-  <div class="panel" style="margin-bottom:10px">
+  </div>
+  <details id="manualClientSetup" class="advanced-settings">
+    <summary>Advanced: local apps and manual configuration</summary>
+    <div class="panel">
     <h3><span>Local clients on the selected PC</span><button class="sec" onclick="act('sync_clients')">Update supported client configs</button></h3>
     <p>Setup updates existing Codex, Claude Desktop, Cursor, Windsurf, Factory, and Gemini / Antigravity configuration directories. Restart the client, then check its MCP tools. A configuration entry alone does not confirm a live connection.</p>
     <table>
@@ -88,17 +101,13 @@ Use OAuth and explicitly select a paired PC. The Windows client must be installe
   <div class="grid">
     <div class="panel">
       <h3><span>Configure an IDE connection</span></h3>
-      <p style="margin:0;font-size:12px;color:#aca1bd">These links open an installation prompt in Cursor or VS Code on the computer running this browser. Install the approved Windows package globally first. From a source install, use the supported config update above instead.</p>
+      <p>These links open an installation prompt in Cursor or VS Code on this computer. Install the approved Windows package globally first. From a source install, use the supported config update above instead.</p>
       <div class="row">
         <a class="btn" id="cursorLink" href="#">Open in Cursor</a>
         <a class="btn sec" id="vscodeLink" href="#">Open in VS Code</a>
       </div>
-      <h3 style="margin-top:6px"><span>Remote HTTPS MCP Endpoint (ChatGPT / Claude / Mobile)</span><button class="sec" onclick="copyText(document.getElementById('mcpUrlCode').textContent,'Copied Remote MCP URL!')">Copy URL</button></h3>
-      <code class="blk" id="mcpUrlCode"></code>
-      <p>Connect with OAuth, sign in to your Stealth Commander account, and choose one paired PC.</p>
     </div>
     <div class="panel">
-      <details id="manualClientSetup"><summary>Manual local client setup</summary>
       <h3><span>Local MCP configuration</span><button class="sec" onclick="copyText(document.getElementById('jsonSnippet').textContent,'Copied JSON config!')">Copy JSON</button></h3>
       <p>For Claude Desktop, Cursor, Windsurf, or Factory. These manual examples require <code>stealth-commander</code> on PATH from a global install of an approved package archive. Source setup registers supported clients with absolute paths instead. No public npm package is available.</p>
       <pre id="jsonSnippet">{
@@ -113,9 +122,9 @@ Use OAuth and explicitly select a paired PC. The Windows client must be installe
       <code class="blk" id="claudeCliSnippet">claude mcp add --transport stdio stealth-commander -- cmd /d /c stealth-commander serve</code>
       <h3><span>Codex CLI</span><button class="sec" onclick="copyText(document.getElementById('codexCliSnippet').textContent,'Copied Codex command.')">Copy Codex command</button></h3>
       <code class="blk" id="codexCliSnippet">codex mcp add stealth-commander -- cmd /d /c stealth-commander serve</code>
-      </details>
     </div>
   </div>
+  </details>
 </section>
 
 <section id="view-live" class="view">
@@ -179,12 +188,11 @@ Use OAuth and explicitly select a paired PC. The Windows client must be installe
   <h1 class="section-title">Your account.</h1>
   <div id="acctSignedOutPanel" class="grid">
     <div class="panel">
-      <h3><span>Sign In or Create Your Stealth Commander Account</span></h3>
-      <p style="margin:0;font-size:12px;color:#b7a4c9">Create an account or sign in to manage your paired Windows PCs. Connecting a PC requires the separately distributed Windows client and local pairing.</p>
+      <h3><span>Sign in or create an account</span></h3>
+      <p>Manage your Windows PCs and connect your assistant from one account.</p>
       <div class="row" style="margin-top:4px">
         <button id="modeSignInBtn" onclick="setAuthMode('login')">Sign In</button>
         <button class="sec" id="modeRegBtn" onclick="setAuthMode('register')">Create Account</button>
-        <button class="sec" id="modeKeyBtn" onclick="setAuthMode('key')">API Key Login</button>
       </div>
       <div id="authEmailFields" style="display:flex;flex-direction:column;gap:8px;margin-top:4px">
         <input id="acctEmailIn" type="email" placeholder="user@example.com">
@@ -198,13 +206,15 @@ Use OAuth and explicitly select a paired PC. The Windows client must be installe
         <button onclick="submitAuth('inline')" id="acctSubmitBtn">Sign In to Account</button>
         <span id="acctAuthMsg" style="font-size:12px;color:#f2a0cd"></span>
       </div>
-    </div>
-    <div class="panel">
-      <h3><span>CLI Account Login & Setup</span><button class="sec" onclick="copyText('node ./bin/stealth-commander.js login','Copied CLI login command!')">Copy CLI Login</button></h3>
-      <p style="margin:0;font-size:12px;color:#aca1bd">Open PowerShell in the extracted Windows client folder containing package.json:</p>
+      <details class="advanced-settings">
+      <summary>Advanced: key or command-line sign in</summary>
+      <button class="sec" id="modeKeyBtn" onclick="setAuthMode('key')">Use API key login</button>
+      <h3><span>Command-line login</span><button class="sec" onclick="copyText('node ./bin/stealth-commander.js login','Copied CLI login command!')">Copy login command</button></h3>
+      <p>Open PowerShell in the extracted Windows client folder containing package.json:</p>
       <code class="blk">node ./bin/stealth-commander.js login</code>
-      <h3><span>Check Signed-In Account in CLI</span></h3>
+      <h3><span>Check the signed-in account</span></h3>
       <code class="blk">node ./bin/stealth-commander.js whoami</code>
+      </details>
     </div>
   </div>
 
@@ -215,31 +225,53 @@ Use OAuth and explicitly select a paired PC. The Windows client must be installe
       <p id="billingStatus" aria-live="polite">—</p>
       <div class="row"><button onclick="openBilling('checkout')">Open test Checkout</button><button class="sec" onclick="openBilling('portal')">Open test billing Portal</button><button class="sec" onclick="loadBilling()">Refresh billing</button></div>
     </div>
-    <div class="kpis">
-      <div class="kpi"><div class="lbl">Signed-In Account</div><div class="val" id="acctEmailVal" style="font-size:15px">—</div></div>
-      <div class="kpi"><div class="lbl">Display Name</div><div class="val" id="acctNameVal" style="font-size:15px">—</div></div>
-      <div class="kpi"><div class="lbl">Linked Windows PCs</div><div class="val" id="acctDevCount">0</div></div>
-      <div class="kpi"><div class="lbl">Session Status</div><div class="val" style="font-size:15px;color:#d7b1f2">Authenticated</div></div>
+    <div class="panel" style="margin-bottom:20px">
+      <h3><span>Your account</span><button class="danger" onclick="logoutAccount()">Sign Out</button></h3>
+      <p id="acctEmailVal">—</p>
+      <p><span id="acctDevCount">0</span> paired PCs</p>
+      <span id="acctNameVal" hidden></span>
     </div>
     <div class="grid">
       <div class="panel">
-        <h3><span>Account Security & Personal API Key</span><div class="row"><button class="sec" id="acctKeyReveal" type="button" aria-controls="acctKeyCode" aria-pressed="false" onclick="toggleAccountKey()" disabled>Show key</button><button class="sec" id="acctKeyCopy" type="button" onclick="copyAccountKey()" disabled>Copy API Key</button><button class="sec" onclick="rotateApiKey()">Rotate Key</button><button class="danger" onclick="logoutAccount()">Sign Out</button></div></h3>
-        <code class="blk" id="acctKeyCode">—</code>
-        <h3 style="margin-top:6px"><span>Pair this Windows PC and enable remote access</span><button class="sec" onclick="copyText(document.getElementById('acctSetupCmd').textContent,'Copied Account Setup Command!')">Copy Setup Command</button></h3>
-        <div class="row"><label for="setupInstallMode">Windows client installation</label><select id="setupInstallMode" onchange="renderSetupCommand()"><option value="source">Extracted source folder</option><option value="global">Globally installed package archive</option></select></div>
-        <p id="setupCommandHelp">Open PowerShell in the client folder containing package.json. Setup prompts for your account key without showing it.</p>
-        <code class="blk" id="acctSetupCmd">node ./bin/stealth-commander.js setup --enable-remote</code>
-        <details><summary>First-time installation</summary><p>Windows x64, Node.js 18+, and 64-bit Python 3.11+ are required. From the extracted client folder:</p><pre>node ./bin/stealth-commander.js install
-node ./bin/stealth-commander.js doctor</pre><p>Read the readiness results, then run the setup command above. <a href="/about#setup-title">Setup requirements</a></p></details>
-      </div>
-      <div class="panel">
-        <h3><span>Account-Linked Windows PCs & VDI Nodes</span><button class="sec" onclick="loadAccountMe(true)">Refresh Devices</button></h3>
+        <h3><span>Your Windows PCs</span><button class="sec" onclick="loadAccountMe(true)">Refresh PCs</button></h3>
         <table>
           <thead><tr><th>PC / Hostname</th><th>User</th><th>Status</th><th>Action</th></tr></thead>
           <tbody id="acctDevsTable"></tbody>
         </table>
       </div>
+      <div class="panel">
+        <h3><span>Pair a PC</span></h3>
+        <ol>
+          <li>Install the Windows client on the PC you want to use.</li>
+          <li>Follow the setup guide to pair it with your account.</li>
+          <li>Refresh your PCs here, then select the one to use.</li>
+        </ol>
+        <p>Pairing currently needs your account key once. Your assistant then connects through OAuth.</p>
+        <div class="row"><a class="btn" href="https://github.com/maplesyzzurp/Stealth-Commander-MCP/releases/download/v1.1.3-private.6/stealth-commander-1.1.3-private.6.zip">Download Windows client</a><a class="btn sec" href="/about#setup-title">Setup guide</a></div>
+      </div>
     </div>
+    <details id="accountSecurity" class="advanced-settings">
+      <summary>Advanced: account key and security</summary>
+      <div class="panel">
+        <p>Use this key for initial Windows client pairing or manual access. Keep it private.</p>
+        <div class="row"><button class="sec" id="acctKeyReveal" type="button" aria-controls="acctKeyCode" aria-pressed="false" onclick="toggleAccountKey()" disabled>Show key</button><button class="sec" id="acctKeyCopy" type="button" onclick="copyAccountKey()" disabled>Copy API Key</button><button class="sec" onclick="rotateApiKey()">Rotate Key</button></div>
+        <code class="blk" id="acctKeyCode">—</code>
+      </div>
+    </details>
+    <details id="accountManualSetup" class="advanced-settings">
+      <summary>Advanced: manual Windows client setup</summary>
+      <div class="panel">
+        <h3><span>Pair this Windows PC</span><button class="sec" onclick="copyText(document.getElementById('acctSetupCmd').textContent,'Copied Account Setup Command!')">Copy Setup Command</button></h3>
+        <div class="row"><label for="setupInstallMode">Windows client installation</label><select id="setupInstallMode" onchange="renderSetupCommand()"><option value="source">Extracted source folder</option><option value="global">Globally installed package archive</option></select></div>
+        <p id="setupCommandHelp">Open PowerShell in the client folder containing package.json. Setup prompts for your account key without showing it.</p>
+        <code class="blk" id="acctSetupCmd">node ./bin/stealth-commander.js setup --enable-remote</code>
+        <details><summary>First-time installation</summary><p>Windows x64, Node.js 18+, and 64-bit Python 3.11+ are required. From the extracted client folder:</p><pre>node ./bin/stealth-commander.js install
+node ./bin/stealth-commander.js doctor</pre><p>Read the readiness results, then run the setup command above. <a href="/about#setup-title">Setup requirements</a></p></details>
+        <h3><span>Optional: install with npx</span><button class="sec" id="copyNpxInstall" onclick="copyText(document.getElementById('npxInstallCmd').textContent,'Copied npx install command.')">Copy npx command</button></h3>
+        <code class="blk" id="npxInstallCmd">npx --yes --package=https://github.com/maplesyzzurp/Stealth-Commander-MCP/releases/download/v1.1.3-private.6/stealth-commander-1.1.3-private.6.tgz stealth-commander install --pretty</code>
+        <p>This installs the Windows client without a global npm install. Pairing is separate. The ZIP download above works without npx.</p>
+      </div>
+    </details>
   </div>
 </section>
 
@@ -272,7 +304,7 @@ node ./bin/stealth-commander.js doctor</pre><p>Read the readiness results, then 
   <h3><span id="setupBannerTitle">Sign in to your Stealth Commander account</span><div class="row"><button id="setupBannerAccountBtn" onclick="openAuthModal()">Sign In / Create Account</button><button class="sec" onclick="copyText(document.getElementById('bannerSetupCmd').textContent,'Copied setup command!')">Copy Setup Command</button></div></h3>
   <p id="setupBannerDescription" style="margin:0;font-size:12px;color:#b7a4c9">Sign in to manage your paired Windows PCs. To pair a new PC, run the command below in PowerShell on that Windows PC.</p>
   <code class="blk" id="bannerSetupCmd">node ./bin/stealth-commander.js setup --enable-remote</code>
-  <p>The Windows client is distributed privately. <a href="/about">Setup requirements</a></p>
+  <p><a href="/about">Windows setup requirements</a></p>
 </div>
 <footer class="dashboard-footer"><nav><a href="/">Home</a><a href="/about">About</a><a href="/support">Support</a><a href="https://github.com/maplesyzzurp/Stealth-Commander-MCP" target="_blank" rel="noopener noreferrer">GitHub</a></nav></footer>
 <div id="toast" role="status"></div>

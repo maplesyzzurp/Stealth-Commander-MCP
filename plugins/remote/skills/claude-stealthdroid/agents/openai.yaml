@@ -1,0 +1,4 @@
+interface:
+  display_name: "Stealth Android"
+  short_description: "Capture or control the selected Android device"
+

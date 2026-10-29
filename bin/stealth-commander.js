@@ -27,10 +27,44 @@ function findPython() {
 const python = findPython();
 const script = path.join(__dirname, "..", "skills", "stealth-ghost-delegation", "scripts", "stealth_commander_mcp.py");
 const userArgs = process.argv.slice(2);
-const effectiveArgs = userArgs.length === 0 && process.stdin.isTTY ? ["setup"] : userArgs.filter((argument) => argument !== "serve");
+const requestedArgs = userArgs.filter((argument) => argument !== "--pretty");
+const effectiveArgs = requestedArgs.length === 0 && process.stdin.isTTY ? ["setup"] : requestedArgs.filter((argument) => argument !== "serve");
+const pretty = ["install", "setup"].includes(effectiveArgs[0]) && (userArgs.includes("--pretty") || (process.stdin.isTTY && process.stdout.isTTY));
+
+function successBanner(command) {
+  const glyphs = {
+    A: [" ### ", "#   #", "#####", "#   #", "#   #"],
+    C: [" ####", "#    ", "#    ", "#    ", " ####"],
+    D: ["#### ", "#   #", "#   #", "#   #", "#### "],
+    E: ["#####", "#    ", "#### ", "#    ", "#####"],
+    H: ["#   #", "#   #", "#####", "#   #", "#   #"],
+    L: ["#    ", "#    ", "#    ", "#    ", "#####"],
+    M: ["#   #", "## ##", "# # #", "#   #", "#   #"],
+    N: ["#   #", "##  #", "# # #", "#  ##", "#   #"],
+    O: [" ### ", "#   #", "#   #", "#   #", " ### "],
+    R: ["#### ", "#   #", "#### ", "#  # ", "#   #"],
+    S: [" ####", "#    ", " ### ", "    #", "#### "],
+    T: ["#####", "  #  ", "  #  ", "  #  ", "  #  "]
+  };
+  const word = (text) => Array.from({ length: 5 }, (_, row) => [...text].map((letter) => glyphs[letter][row]).join(" "));
+  const ninja = ["", "     .----.", "    /      \\", "   / .----. \\", "  | / >  < \\ |", "  | \\______/ |", "  |  /====\\  |", "   \\ \\____/ /", "    '------'", "", ""];
+  const title = [...word("STEALTH"), "", ...word("COMMANDER")];
+  const width = process.stdout.columns || 80;
+  const art = width >= 72
+    ? title.map((line, row) => ninja[row].padEnd(18) + line).join("\n")
+    : ["    .----.", "   / .--. \\", "  | [> <] |", "  |  ==== |", "   '-----'"].join("\n");
+  const color = process.stdout.isTTY && !("NO_COLOR" in process.env) && process.env.TERM !== "dumb";
+  const heading = command === "install" ? "INSTALL COMPLETE" : "SETUP COMPLETE";
+  const details = width >= 72
+    ? ["Dashboard: https://stealthcommander.pages.dev/dashboard", "Check readiness before starting a desktop task."]
+    : ["stealthcommander.pages.dev", "Check readiness before desktop tasks."];
+  const lines = ["", art, "", "STEALTH COMMANDER", heading, "", ...details, ""];
+  return (color ? "\u001b[38;5;141m" : "") + lines.join("\n") + (color ? "\u001b[0m" : "");
+}
+
 let child;
 try {
-  child = spawn(python.command, [...python.prefix, "-B", script, ...effectiveArgs], { stdio: "inherit", windowsHide: true });
+  child = spawn(python.command, [...python.prefix, "-B", script, ...effectiveArgs], { stdio: pretty ? ["inherit", "pipe", "inherit"] : "inherit", windowsHide: true });
 } catch (_) {
   console.error("Error: Could not start the verified Python interpreter. Check its installation and access permissions.");
   process.exit(1);
@@ -40,4 +74,34 @@ child.once("error", (error) => {
   console.error(`Error: Could not start the verified Python interpreter (${code}). Check its installation and access permissions.`);
   process.exit(1);
 });
-child.once("exit", (code) => process.exit(Number.isInteger(code) ? code : 1));
+if (pretty) {
+  let output = "";
+  let passthrough = false;
+  child.stdout.setEncoding("utf8");
+  child.stdout.on("data", (chunk) => {
+    if (passthrough) {
+      process.stdout.write(chunk);
+    } else if (output.length + chunk.length > 1024 * 1024) {
+      // Large or unexpected output stays bounded and remains available for diagnosis.
+      process.stdout.write(output + chunk);
+      output = "";
+      passthrough = true;
+    } else {
+      output += chunk;
+    }
+  });
+  child.once("close", (code) => {
+    let result;
+    if (!passthrough) {
+      try { result = JSON.parse(output); } catch (_) { /* Preserve unfamiliar output. */ }
+      if (code === 0 && result && result.ok === true) {
+        process.stdout.write(successBanner(effectiveArgs[0]));
+      } else {
+        process.stdout.write(output);
+      }
+    }
+    process.exit(code === 0 && result && result.ok === false ? 1 : Number.isInteger(code) ? code : 1);
+  });
+} else {
+  child.once("exit", (code) => process.exit(Number.isInteger(code) ? code : 1));
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Video frame extraction"
+  short_description: "Extract fresh frames from a selected existing video"
+

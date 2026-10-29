@@ -1,0 +1,4 @@
+interface:
+  display_name: "Stealth workspace guidance"
+  short_description: "Preserve shared windows and input during authorized work"
+

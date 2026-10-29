@@ -25,7 +25,7 @@ SCRIPTS_DIR = Path(__file__).resolve().parent
 DEFAULT_DASHBOARD_PORT = 61076
 DEFAULT_HUB_PORT = 61077
 PAGES_ORIGIN = "https://stealthcommander.pages.dev"
-SERVER_INFO = {"name": "Stealth Commander", "version": "1.1.3-private.5"}
+SERVER_INFO = {"name": "Stealth Commander", "version": "1.1.3-private.6"}
 
 TOOLS = [
     {
@@ -763,7 +763,7 @@ th{color:#8b9bb4;font-size:11px;text-transform:uppercase}
     <h3><span>Install an approved private build</span><button class="sec" onclick="copyText(document.getElementById('privateInstallCmd').textContent,'Copied private package install commands!')">Copy Package Commands</button></h3>
     <p>Builds and remote accounts are currently private. Obtain reviewed source or an approved .tgz from the operator; there is no public package registry or download here. Use Windows x64, Node.js 18+ with npm, and 64-bit Python 3.11+. PyCharm and Chrome are separate prerequisites for their workflows.</p>
     <p>In PowerShell, from the folder containing the approved package, use its actual filename:</p>
-    <pre id="privateInstallCmd">npm install --global ./stealth-commander-1.1.3-private.5.tgz
+    <pre id="privateInstallCmd">npm install --global ./stealth-commander-1.1.3-private.6.tgz
 stealth-commander install
 stealth-commander doctor</pre>
     <p>Alternatively, extract the approved source archive and run these commands from its directory containing package.json:</p>
@@ -2526,12 +2526,15 @@ def setup_environment(cli_opts=None):
         return {"ok": False, "error": "Installation failed: " + str(error)}
     installed_skills = installed["skills_installed"]
     updated_configs = installed["mcp_configs_updated"]
-    hub = ensure_remote_hub(enable_tunnel=opts.get("enable_remote") in (True, "true", "1"))
+    enable_remote = opts.get("enable_remote") in (True, "true", "1")
+    pairing_requested = bool(opts.get("key") or opts.get("api_key") or opts.get("email"))
+    # Verify the installed hub before changing pairing. A fresh PC must pair
+    # successfully before a remotely reachable tunnel can be enabled.
+    hub = ensure_remote_hub(enable_tunnel=enable_remote and not pairing_requested)
     if not hub.get("ok"):
         return hub
-    portal_url = hub.get("portal_url")
     acct_res = None
-    if opts.get("key") or opts.get("api_key") or opts.get("email"):
+    if pairing_requested:
         acct_res = account_login(
             email=opts.get("email"),
             password=opts.get("password"),
@@ -2539,14 +2542,20 @@ def setup_environment(cli_opts=None):
             name=opts.get("name"),
             register=bool(opts.get("register")),
         )
+        if acct_res.get("ok") and enable_remote:
+            hub = ensure_remote_hub(enable_tunnel=True)
+            if not hub.get("ok"):
+                return hub
     else:
         sync_device_to_account(hub)
+    if enable_remote and (acct_res is None or acct_res.get("ok")) and hub.get("remote_access_enabled") is not True:
+        return {"ok": False, "remote_access_enabled": False, "error": "The PC is paired, but its remote tunnel is not ready. Check the connection and retry setup --enable-remote."}
     acct_cfg = _load_account_config()
     return {
         "ok": bool(hub.get("ok")) and (acct_res is None or bool(acct_res.get("ok"))),
         "web_control_center": PAGES_ORIGIN,
         "local_control_center": hub.get("local_portal_url"),
-        "portal_url": portal_url,
+        "portal_url": hub.get("portal_url"),
         "mcp_url": hub.get("mcp_url"),
         "dashboard_url": hub.get("dashboard_url"),
         "account": acct_cfg.get("email") or (acct_res or {}).get("account", {}).get("email"),

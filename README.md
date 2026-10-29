@@ -10,7 +10,15 @@ This repository is the authoritative source for the skill. An agent starts with 
 
 ## PC installer
 
-Current Windows builds are distributed privately. Obtain the reviewed source archive or an approved npm `.tgz` from the operator. There is no public npm registry release or public Windows download supplied by this repository, and the ChatGPT plugin is not a public listing.
+The Windows preview is available from [GitHub Releases](https://github.com/maplesyzzurp/Stealth-Commander-MCP/releases/tag/v1.1.3-private.6) as a ZIP or npm package archive. There is no npm registry release, and the ChatGPT plugin is not a public listing. The version's `private` suffix is retained from the preview series; the release archives are publicly downloadable.
+
+Extract the Windows ZIP and use the source commands below. Alternatively, run the published package directly with npx:
+
+~~~powershell
+npx --yes --package=https://github.com/maplesyzzurp/Stealth-Commander-MCP/releases/download/v1.1.3-private.6/stealth-commander-1.1.3-private.6.tgz stealth-commander install --pretty
+~~~
+
+The success banner appears only after installation succeeds. This installs the client and supported existing client configurations; account pairing is a separate step. To pair and explicitly enable remote access using the same package, replace `install --pretty` with `setup --enable-remote --pretty`. Bare `npx stealth-commander` is not supported until an npm registry release exists.
 
 Website account access follows the deployed `PRIVATE_MODE` setting. `false` enables normal registration and email/password sign-in; `true` limits access to the approved-account allowlist. The account dashboard, paired PCs, device consent, CSRF checks, and single-use request tickets remain protected in both modes. Creating a website account does not install the Windows client or publish the ChatGPT plugin.
 
@@ -26,14 +34,14 @@ node ./bin/stealth-commander.js doctor
 For an approved package archive, open PowerShell in the directory containing that file:
 
 ~~~powershell
-npm install --global ./stealth-commander-1.1.3-private.5.tgz
+npm install --global ./stealth-commander-1.1.3-private.6.tgz
 stealth-commander install
 stealth-commander doctor
 ~~~
 
 Use the supplied archive's actual filename if it differs. The `install` command installs the complete skill and Python dependencies and updates supported existing local AI client configurations. It starts no services and needs no account. Read the individual readiness results from `doctor`; success does not mean every optional application is installed. Local CLI use from extracted source requires no global npm installation.
 
-After a source build passes release checks, the operator can produce that npm archive with `npm pack --ignore-scripts` from the repository root. GitHub Actions validates a package dry-run; it does not distribute a downloadable build.
+After a source build passes release checks, produce the npm archive with `npm pack --ignore-scripts` from the repository root. Release only that verified payload and its checksums. GitHub Actions validates the payload before the release is attached to its tested source commit.
 
 The remaining commands use the globally installed `stealth-commander` command. From extracted source, replace it with `node ./bin/stealth-commander.js` while staying in that source directory. `setup` requires existing pairing or an account key, updates the installation, and starts local services. It does not create a new remote tunnel.
 

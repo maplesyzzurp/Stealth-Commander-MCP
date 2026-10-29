@@ -114,9 +114,9 @@ test('missing or malformed domain challenges fail closed', async () => {
 
 for (const privateMode of ['true', 'false']) test(`only exact informational, homepage and search assets are public (PRIVATE_MODE=${privateMode})`, async () => {
   const assetRequests = [];
-  const publicPaths = ['/', '/about', '/support', '/icon.png', '/app.js', '/app.css', '/robots.txt', '/sitemap.xml', '/social-card.png'];
-  const assetPaths = ['/landing', '/about', '/support', '/icon.png', '/app.js', '/app.css', '/robots.txt', '/sitemap.xml', '/social-card.png'];
-  const searchTypes = { '/robots.txt': 'text/plain', '/sitemap.xml': 'application/xml', '/social-card.png': 'image/png' };
+  const publicPaths = ['/', '/about', '/support', '/icon.png', '/app.js', '/app.css', '/robots.txt', '/sitemap.xml', '/social-card.png', '/jdm-stickerwall.svg'];
+  const assetPaths = ['/landing', '/about', '/support', '/icon.png', '/app.js', '/app.css', '/robots.txt', '/sitemap.xml', '/social-card.png', '/jdm-stickerwall.svg'];
+  const searchTypes = { '/robots.txt': 'text/plain', '/sitemap.xml': 'application/xml', '/social-card.png': 'image/png', '/jdm-stickerwall.svg': 'image/svg+xml' };
   const f = await fixture(JSON.stringify([email]), { PRIVATE_MODE: privateMode }, request => {
     const path = new URL(request.url).pathname;
     assetRequests.push({ path, method: request.method });

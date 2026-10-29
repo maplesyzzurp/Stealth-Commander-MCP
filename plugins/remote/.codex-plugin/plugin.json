@@ -2,7 +2,7 @@
   "interface": {
     "displayName": "Stealth Commander",
     "shortDescription": "Control your PC from chat",
-    "longDescription": "Connect ChatGPT to a Windows PC you own or administer. Sign in through OAuth and select a paired PC to check its status, run commands, and inspect supported hidden sessions and window observations. The installed Windows client determines which tools are available and must stay online. Commands use that Windows account's file and network permissions. Create a Stealth Commander account to sign in. The Windows client is currently distributed privately, and some browser and native capture workflows remain under testing.",
+    "longDescription": "Connect ChatGPT to a Windows PC you own or administer. Sign in through OAuth and select a paired PC to check its status, run commands, and inspect supported hidden sessions and window observations. The installed Windows client determines which tools are available and must stay online. Commands use that Windows account's file and network permissions. Create a Stealth Commander account to sign in. Install the Windows client to pair your PC. Some browser and native capture workflows remain under testing.",
     "developerName": "nexusmap.ai",
     "category": "Developer Tools",
     "capabilities": [
@@ -25,7 +25,7 @@
     "logoDark": "./assets/ninja-mask.png"
   },
   "name": "stealth-commander",
-  "version": "1.0.10",
+  "version": "1.0.12",
   "description": "Connect ChatGPT to a Windows PC that you own and have paired with Stealth Commander.",
   "author": {
     "name": "nexusmap.ai",
@@ -39,6 +39,6 @@
     "device management"
   ],
   "homepage": "https://stealthcommander.pages.dev/",
-  "mcpServers": "./.mcp.json",
-  "skills": "./skills/"
+  "skills": "./skills",
+  "mcpServers": "./.mcp.json"
 }

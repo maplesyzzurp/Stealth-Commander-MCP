@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1120" viewBox="0 0 1600 1120" role="img" aria-labelledby="title desc">
+  <title id="title">Stealth Commander sticker wall</title>
+  <desc id="desc">Original purple, magenta and aged-paper Japanese lettering decals at the edges of a black background.</desc>
+  <defs>
+    <pattern id="checker" width="28" height="28" patternUnits="userSpaceOnUse"><path d="M0 0h14v14H0zM14 14h14v14H14z" fill="#b9a4cf"/></pattern>
+    <pattern id="dots" width="10" height="10" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1.3" fill="#9b61bb"/></pattern>
+    <style>
+      .latin{font-family:Impact,'Arial Narrow',sans-serif;font-weight:900;letter-spacing:1px}
+      .jp{font-family:'Yu Gothic','Hiragino Kaku Gothic ProN','Noto Sans CJK JP',sans-serif;font-weight:900}
+    </style>
+  </defs>
+  <path fill="#08070b" d="M0 0h1600v1120H0z"/>
+  <g opacity=".46">
+    <path fill="#2c1638" d="M0 82 263 0h94L0 119zm0 53 338-102h26L0 149zM0 163l288-86h9L0 169z"/>
+    <path fill="#27122e" d="m1600 265-294-91-12 36 306 95zm0 53-308-95-5 14 313 97z"/>
+    <path fill="url(#dots)" d="M0 244h259v160H0zM1370 702h230v201h-230z"/>
+    <g transform="translate(-55 120) rotate(-11 160 70)">
+      <path fill="#c9c0ad" d="M14 0h299l13 14v108l-14 15H0V15z"/>
+      <path fill="#0b0910" d="M20 7h286l12 12v100l-11 10H8V20z"/>
+      <path stroke="#c9c0ad" fill="none" stroke-width="2" d="M25 14h275l10 9v91l-8 8H16V24z"/>
+      <text class="latin" x="39" y="66" font-size="53" fill="#c9c0ad">STEALTH</text>
+      <text class="latin" x="40" y="106" font-size="31" fill="#a666cf" letter-spacing="4">COMMANDER</text>
+      <path fill="#be528e" d="m23 83 8-6v34h-8z"/>
+    </g>
+    <g transform="translate(194 284) rotate(13)">
+      <path fill="#9360b6" d="m0 0 112-14 17 19v139l-18 16H-8l-9-17V14z"/>
+      <path fill="#120c19" d="m7 7 101-11 11 13v130l-13 12H-1l-7-13V19z"/>
+      <text class="jp" x="9" y="115" font-size="96" fill="#b48ccf">影</text>
+      <path stroke="#774c92" stroke-width="2" d="M7 129h97"/>
+    </g>
+    <g transform="translate(-53 436) rotate(-17 150 46)">
+      <path fill="#a64781" d="M0 0h324l22 21-17 70H5L-9 73z"/>
+      <path fill="#120b18" d="M8 7h311l17 17-14 59H10L-1 70z"/>
+      <text class="jp" x="18" y="64" font-size="60" fill="#bd8aaf" letter-spacing="1">ステルス</text>
+      <path fill="#a64781" d="m293 28 13-3-10 43-13 3zM312 25l8-1-10 43-7 1z"/>
+    </g>
+    <g transform="translate(46 620) rotate(12 104 100)">
+      <circle cx="104" cy="100" r="99" fill="#b9b09e"/>
+      <circle cx="104" cy="100" r="92" fill="#100c16"/>
+      <circle cx="104" cy="100" r="82" fill="none" stroke="#b9b09e" stroke-width="2"/>
+      <path fill="#683c81" d="M31 93h146v31H31z"/>
+      <text class="latin" x="43" y="129" font-size="91" fill="#c5b8a1" transform="skewX(-8)">SC</text>
+      <path stroke="#b9b09e" stroke-width="3" d="M64 47h80M64 154h80"/>
+    </g>
+    <path fill="url(#checker)" opacity=".6" d="m-20 854 260-77 15 50-260 77z"/>
+    <g transform="translate(-73 943) rotate(-9 196 48)">
+      <path fill="#5f3578" d="m0 0 395 0-25 98H-24z"/>
+      <path fill="#0d0912" d="M6 7h378l-21 84H-13z"/>
+      <text class="latin" x="24" y="68" font-size="57" fill="#9764b6">STEALTH</text>
+      <path stroke="#bd5e9b" stroke-width="4" d="m314 25-12 48m26-48-12 48m26-48-12 48"/>
+    </g>
+    <path fill="#522c67" d="M273 875h3l38 177h-3zm14-18h5l41 195h-5zm18-8h9l44 203h-9z"/>
+  </g>
+  <g opacity=".43">
+    <g transform="translate(1368 62) rotate(14 100 90)">
+      <path fill="#b4a991" d="m0 19 20-19h173l17 17v151l-20 16H18L0 164z"/>
+      <path fill="#100c15" d="m8 23 15-15h166l13 13v142l-15 13H22L8 160z"/>
+      <text class="jp" x="41" y="131" font-size="115" fill="#b4a991">静</text>
+      <path stroke="#9e65bd" stroke-width="3" d="M29 29h151M29 152h151"/>
+    </g>
+    <g transform="translate(1325 310) rotate(-12 156 47)">
+      <path fill="#80509d" d="m0 0 328 0 15 19v70l-17 16H-12V17z"/>
+      <path fill="#100b17" d="M5 8h318l11 14v63l-12 12H-4V21z"/>
+      <text class="latin" x="11" y="56" font-size="46" fill="#ad7bcb">STEALTH</text>
+      <text class="latin" x="13" y="86" font-size="25" fill="#c1aeaa" letter-spacing="3">COMMANDER</text>
+      <path fill="#9e497a" d="M269 22h49v9h-49zM269 39h49v9h-49zM269 56h49v9h-49z"/>
+    </g>
+    <path fill="url(#checker)" opacity=".75" d="m1458 422 172-38 12 58-172 38z"/>
+    <g transform="translate(1405 529) rotate(9 93 80)">
+      <path fill="#a84c85" d="m20 0 169 9 14 20-8 124-22 16L5 158l-14-18L0 17z"/>
+      <path fill="#140b18" d="m23 8 161 9 11 15-8 117-17 12-161-10-10-14L8 22z"/>
+      <text class="latin" x="22" y="123" font-size="117" fill="#b785a9" transform="skewX(-5)">SC</text>
+    </g>
+    <g transform="translate(1289 798) rotate(-8 172 40)">
+      <path fill="#b7aa95" d="M0 0h350l-12 91H-15z"/>
+      <path fill="#100c14" d="M6 7h335l-10 77H-6z"/>
+      <text class="jp" x="16" y="65" font-size="62" fill="#b7aa95" letter-spacing="3">ステルス</text>
+      <path fill="#a05fb8" d="m300 16 13 0-10 59h-13zm19 0h8l-10 59h-8z"/>
+    </g>
+    <g transform="translate(1458 939) rotate(16 74 74)">
+      <circle cx="74" cy="74" r="73" fill="#774391"/>
+      <circle cx="74" cy="74" r="66" fill="#0d0a13"/>
+      <circle cx="74" cy="74" r="58" fill="none" stroke="#9d72b7" stroke-width="2"/>
+      <text class="jp" x="32" y="106" font-size="82" fill="#9d72b7">影</text>
+    </g>
+    <path fill="#673452" d="m1280 973 107-23 1 6-107 23zm-21 22 133-29 1 3-133 29zm7 15 129-28 1 10-128 28z"/>
+  </g>
+  <g fill="none" stroke="#73418d" stroke-width="1" opacity=".26">
+    <path d="M394 0 358 160M405 0l-36 160M1201 1102l40-175m-28 175 40-175"/>
+    <path d="m0 571 251-63M0 577l251-63m1097-111 503 114m-503-108 503 114"/>
+  </g>
+</svg>

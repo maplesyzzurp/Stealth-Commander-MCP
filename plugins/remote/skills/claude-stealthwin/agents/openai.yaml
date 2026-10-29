@@ -1,0 +1,4 @@
+interface:
+  display_name: "Stealth screenshot"
+  short_description: "Capture visible Windows pixels without sending input"
+

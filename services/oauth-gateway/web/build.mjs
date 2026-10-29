@@ -11,6 +11,7 @@ const options = {
   define: { 'process.env.NODE_ENV': '"production"' },
   minify: true,
   sourcemap: false,
+  external: ['/jdm-stickerwall.svg'],
   legalComments: 'eof',
   logLevel: 'info'
 };

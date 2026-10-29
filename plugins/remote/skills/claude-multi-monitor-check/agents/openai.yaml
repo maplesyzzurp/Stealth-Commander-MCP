@@ -1,0 +1,4 @@
+interface:
+  display_name: "Monitor observation"
+  short_description: "Observe monitors without moving windows or focus"
+

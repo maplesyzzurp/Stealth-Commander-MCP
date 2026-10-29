@@ -1,0 +1,4 @@
+interface:
+  display_name: "Secondary display guidance"
+  short_description: "Review displays without sharing desktop input"
+

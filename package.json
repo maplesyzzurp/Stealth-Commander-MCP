@@ -1,6 +1,6 @@
 {
   "name": "stealth-commander",
-  "version": "1.1.3-private.5",
+  "version": "1.1.3-private.6",
   "description": "MCP server and tools for hidden Windows application sessions and captured window observations.",
   "author": "nexusmap.ai",
   "license": "MIT",

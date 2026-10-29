@@ -1,0 +1,4 @@
+interface:
+  display_name: "Manjaro SSH route"
+  short_description: "Inspect an authorized Manjaro session over SSH"
+

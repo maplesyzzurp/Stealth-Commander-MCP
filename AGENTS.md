@@ -23,3 +23,7 @@ Prefer Chrome. The hidden browser adapter uses a separate profile; explain that 
 ## Canonical repository
 
 This repository and its configured `origin/main` are the source of truth for the complete build. Use this checkout and its configured origin for future changes and pushes. The prior repository is historical; do not publish new builds there. Preserve the existing Stealth Commander account-plugin identity when releasing updates.
+
+## Brand and attribution
+
+Use Stealth Commander as the product name and `nexusmap.ai` as the author and developer. Never use personal attribution in release files. The sole plugin icon is the original `assets/ninja-mask.png`, SHA-256 `b708e8de067b7e01482dd109bd2b7f191150b84c1a13f03ebc1b6b5caaffd5c4`. Use these same bytes for the website icon and all light/dark plugin logo and composer fields. Do not regenerate, recolor, crop, or replace it. Run `npm run verify:package` before releasing; its branding and privacy checks must pass.

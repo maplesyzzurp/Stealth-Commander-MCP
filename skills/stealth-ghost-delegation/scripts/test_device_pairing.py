@@ -215,6 +215,66 @@ class DevicePairingTests(unittest.TestCase):
         self.assertEqual(setup.call_args.args[0], {"enable_remote": True, "api_key": self.owner_key})
         self.assert_public(json.loads(output.getvalue()))
 
+    def test_first_interactive_remote_setup_pairs_before_enabling_tunnel(self):
+        output = io.StringIO()
+        stages = []
+        local_hub = {"ok": True, "local_portal_url": "http://127.0.0.1:61077/SYNTHETIC_LOCAL", "portal_url": "http://127.0.0.1:61077/SYNTHETIC_LOCAL"}
+        remote_hub = {**local_hub, "portal_url": "https://synthetic.invalid/portal", "mcp_url": "https://synthetic.invalid/mcp", "remote_access_enabled": True}
+
+        def hub(*, enable_tunnel):
+            stages.append("remote" if enable_tunnel else "local")
+            if enable_tunnel:
+                self.assertEqual(json.loads(self.account_file.read_text(encoding="utf-8")), self.local)
+                return remote_hub
+            self.assertFalse(self.account_file.exists())
+            return local_hub
+
+        def portal(path, **kwargs):
+            stages.append(path)
+            return self.auth_response() if path == "/api/auth/login" else self.pair_response()
+
+        with mock.patch.object(mcp.sys, "argv", ["stealth-commander", "setup", "--enable-remote"]), mock.patch.object(mcp.sys, "stdin") as stdin, mock.patch.object(mcp.getpass, "getpass", return_value=self.owner_key) as prompt, mock.patch("install_local.install", return_value={"skills_installed": [], "mcp_configs_updated": []}), mock.patch.object(mcp, "ensure_remote_hub", side_effect=hub), mock.patch.object(mcp, "_portal_api_request", side_effect=portal), redirect_stdout(output):
+            stdin.isatty.return_value = True
+            status = mcp.main()
+        response = json.loads(output.getvalue())
+        self.assertEqual(status, 0)
+        self.assertTrue(response["ok"])
+        self.assertEqual(stages, ["local", "/api/auth/login", "/api/devices/pair", "remote"])
+        self.assertEqual(response["portal_url"], remote_hub["portal_url"])
+        self.assertEqual(response["mcp_url"], remote_hub["mcp_url"])
+        prompt.assert_called_once_with("Account key (hidden): ")
+        self.assert_public(response)
+
+    def test_failed_setup_pairing_never_enables_remote_tunnel(self):
+        local_hub = {"ok": True, "local_portal_url": "http://127.0.0.1:61077/SYNTHETIC_LOCAL"}
+        with mock.patch("install_local.install", return_value={"skills_installed": [], "mcp_configs_updated": []}), mock.patch.object(mcp, "ensure_remote_hub", return_value=local_hub) as hub, mock.patch.object(mcp, "_portal_api_request", return_value={"ok": False}):
+            response = mcp.setup_environment({"api_key": self.owner_key, "enable_remote": True})
+        self.assertFalse(response["ok"])
+        self.assertFalse(self.account_file.exists())
+        hub.assert_called_once_with(enable_tunnel=False)
+        self.assert_public(response)
+
+    def test_failed_remote_start_after_pairing_returns_error_without_claiming_success(self):
+        local_hub = {"ok": True, "local_portal_url": "http://127.0.0.1:61077/SYNTHETIC_LOCAL"}
+        tunnel_failure = {"ok": False, "remote_access_enabled": False, "error": "Synthetic tunnel unavailable."}
+        with mock.patch("install_local.install", return_value={"skills_installed": [], "mcp_configs_updated": []}), mock.patch.object(mcp, "ensure_remote_hub", side_effect=[local_hub, tunnel_failure]) as hub, mock.patch.object(mcp, "_portal_api_request", side_effect=[self.auth_response(), self.pair_response()]):
+            response = mcp.setup_environment({"api_key": self.owner_key, "enable_remote": True})
+        self.assertEqual(response, tunnel_failure)
+        self.assertEqual(json.loads(self.account_file.read_text(encoding="utf-8")), self.local)
+        self.assertEqual(hub.call_args_list, [mock.call(enable_tunnel=False), mock.call(enable_tunnel=True)])
+        self.assert_public(response)
+
+    def test_missing_remote_endpoint_after_pairing_is_not_setup_success(self):
+        local_hub = {"ok": True, "local_portal_url": "http://127.0.0.1:61077/SYNTHETIC_LOCAL"}
+        pending_tunnel = {**local_hub, "remote_access_enabled": False}
+        with mock.patch("install_local.install", return_value={"skills_installed": [], "mcp_configs_updated": []}), mock.patch.object(mcp, "ensure_remote_hub", side_effect=[local_hub, pending_tunnel]), mock.patch.object(mcp, "_portal_api_request", side_effect=[self.auth_response(), self.pair_response()]):
+            response = mcp.setup_environment({"api_key": self.owner_key, "enable_remote": True})
+        self.assertFalse(response["ok"])
+        self.assertFalse(response["remote_access_enabled"])
+        self.assertIn("remote tunnel is not ready", response["error"])
+        self.assertEqual(json.loads(self.account_file.read_text(encoding="utf-8")), self.local)
+        self.assert_public(response)
+
     def test_noninteractive_login_requires_pairing_without_prompt_or_network(self):
         output = io.StringIO()
         with mock.patch.object(mcp.sys, "argv", ["stealth-commander", "login"]), mock.patch.object(mcp.sys, "stdin") as stdin, mock.patch.object(mcp.getpass, "getpass") as prompt, mock.patch.object(mcp, "_portal_api_request") as api, redirect_stdout(output):

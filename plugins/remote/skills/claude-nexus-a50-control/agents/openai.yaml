@@ -1,0 +1,4 @@
+interface:
+  display_name: "A50 dashboard route"
+  short_description: "Open the dashboard on an identified Android phone"
+

@@ -42,7 +42,7 @@ function SetupDialog({ open, onClose, onActivity }) {
   }, [open]);
   return <dialog ref={dialog} className="setup-dialog" aria-labelledby="setup-dialog-title" onCancel={event => { event.preventDefault(); onClose(); }}>
     <div className="dialog-heading"><h2 id="setup-dialog-title">Set up your Windows PC</h2><button type="button" className="icon-button" onClick={onClose} aria-label="Close setup instructions">&times;</button></div>
-    <p>Use a reviewed source archive supplied by the operator. The Windows client is currently distributed privately.</p>
+    <p><a className="button button-primary" href="https://github.com/maplesyzzurp/Stealth-Commander-MCP/releases/download/v1.1.3-private.6/stealth-commander-1.1.3-private.6.zip">Download Windows client</a></p>
     <div className="requirement-strip"><span>Windows x64</span><span>Node.js 18+</span><span>Python 3.11+ x64</span></div>
     <p>Extract the archive. Open PowerShell in the folder containing <code>package.json</code>.</p>
     <CommandBlock commands={installCommands} label="1. Install and check" onActivity={onActivity} />
