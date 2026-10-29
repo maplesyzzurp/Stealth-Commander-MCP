@@ -1,0 +1,15 @@
+User-agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /dashboard-flow.js
+Disallow: /dashboard-flow.css
+Disallow: /api/
+Disallow: /authorize
+Disallow: /oauth/
+Disallow: /mcp
+Disallow: /sign-in
+Disallow: /sign-up
+Disallow: /billing
+Disallow: /index.html
+
+Sitemap: https://stealthcommander.pages.dev/sitemap.xml

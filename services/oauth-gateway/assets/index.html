@@ -203,7 +203,7 @@ input,select{flex:1;min-width:130px;max-width:100%;background:#0b0711;border:1px
     </div>
     <div class="grid">
       <div class="panel">
-        <h3><span>Account Security & Personal API Key</span><div class="row"><button class="sec" onclick="copyText(document.getElementById('acctKeyCode').textContent,'Copied Account API Key!')">Copy API Key</button><button class="sec" onclick="rotateApiKey()">Rotate Key</button><button class="danger" onclick="logoutAccount()">Sign Out</button></div></h3>
+        <h3><span>Account Security & Personal API Key</span><div class="row"><button class="sec" id="acctKeyReveal" type="button" aria-controls="acctKeyCode" aria-pressed="false" onclick="toggleAccountKey()" disabled>Show key</button><button class="sec" id="acctKeyCopy" type="button" onclick="copyAccountKey()" disabled>Copy API Key</button><button class="sec" onclick="rotateApiKey()">Rotate Key</button><button class="danger" onclick="logoutAccount()">Sign Out</button></div></h3>
         <code class="blk" id="acctKeyCode">—</code>
         <h3 style="margin-top:6px"><span>Pair this Windows PC and enable remote access</span><button class="sec" onclick="copyText(document.getElementById('acctSetupCmd').textContent,'Copied Account Setup Command!')">Copy Setup Command</button></h3>
         <code class="blk" id="acctSetupCmd">stealth-commander setup --enable-remote</code>
@@ -250,7 +250,7 @@ input,select{flex:1;min-width:130px;max-width:100%;background:#0b0711;border:1px
   <code class="blk" id="bannerSetupCmd">stealth-commander setup --enable-remote</code>
   <p>Account creation is open. The Windows client is currently distributed privately, and the ChatGPT plugin is not publicly listed. Select a PC paired to your signed-in account.</p>
 </div>
-<footer class="dashboard-footer"><span>STEALTH COMMANDER / WINDOWS CLIENT</span><nav><a href="/">Home</a><a href="/about">About</a><a href="/support">Support</a></nav></footer>
+<footer class="dashboard-footer"><span>STEALTH COMMANDER / WINDOWS CLIENT</span><nav><a href="/">Home</a><a href="/about">About</a><a href="/support">Support</a><a href="https://github.com/maplesyzzurp/Stealth-Commander-MCP" target="_blank" rel="noopener noreferrer">GitHub</a></nav></footer>
 <div id="toast" role="status"></div>
 <script id="site-connection">
 (() => {
@@ -302,18 +302,39 @@ input,select{flex:1;min-width:130px;max-width:100%;background:#0b0711;border:1px
 })();
 </script>
 <script>
-let selectedDeviceId='',authMode='login',currentAccount=null,controlCsrf='',billingCsrf='',accountEpoch=0,polling=false,dashboardTelemetry=null;
+let selectedDeviceId='',authMode='login',currentAccount=null,controlCsrf='',billingCsrf='',accountEpoch=0,polling=false,dashboardTelemetry=null,accountKeyVisible=false;
 const pendingRequests=new Set();
 const AUTH_ORIGIN='https://stealthcommander.pages.dev';
 const rawPath=location.pathname.replace(/\/+$/,'');
 const out=document.getElementById('out'),grid=document.getElementById('grid'),cards=new Map();
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.style.display='block';setTimeout(()=>t.style.display='none',2200);}
 function copyText(txt,msg){navigator.clipboard.writeText(txt);toast(msg||'Copied!');}
+// Account key display. Keep the raw value out of attributes and copy from account memory.
+function renderAccountKey(value=currentAccount?.api_key){
+  const key=typeof value==='string'?value:'';
+  accountKeyVisible=Boolean(key)&&accountKeyVisible;
+  document.getElementById('acctKeyCode').textContent=key?(accountKeyVisible?key:'****************'):'—';
+  const reveal=document.getElementById('acctKeyReveal');
+  reveal.textContent=accountKeyVisible?'Hide key':'Show key';
+  reveal.setAttribute('aria-pressed',String(accountKeyVisible));
+  reveal.disabled=!key;
+  document.getElementById('acctKeyCopy').disabled=!key;
+}
+function hideAccountKey(){accountKeyVisible=false;renderAccountKey();}
+function toggleAccountKey(){accountKeyVisible=!accountKeyVisible;renderAccountKey();}
+async function copyAccountKey(){
+  const key=currentAccount?.api_key;
+  if(typeof key!=='string'||!key)return;
+  try{await navigator.clipboard.writeText(key);toast('Account API key copied.');}
+  catch(_){toast('Could not copy the key. Try again.');}
+}
+// End account key display.
 function dashboardSnapshot(){
   return {signedIn:Boolean(currentAccount),pairedCount:Array.isArray(currentAccount?.devices)?currentAccount.devices.length:0,selectedDevice:Boolean(selectedDeviceId),checked:Boolean(dashboardTelemetry),...(dashboardTelemetry||{})};
 }
 function publishDashboardState(){window.dispatchEvent(new CustomEvent('stealth-dashboard-state',{detail:dashboardSnapshot()}));}
 function showTab(name,btn){
+  if(name!=='account')hideAccountKey();
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
   document.getElementById('view-'+name).classList.add('active');
@@ -347,6 +368,7 @@ function clearDeviceState(){
 }
 function clearPrivateState(){
   clearDeviceState();controlCsrf='';billingCsrf='';
+  accountKeyVisible=false;renderAccountKey('');
   for(const id of ['acctKeyCode','billingStatus']){const el=document.getElementById(id);if(el)el.textContent='—';}
 }
 async function accountRequest(path,options={}){
@@ -420,6 +442,7 @@ function jsArg(value){
 function renderAccountState(user){
   if((currentAccount?.email||'')!==(user?.email||''))clearPrivateState();
   currentAccount=user||null;
+  accountKeyVisible=false;renderAccountKey();
   window.dispatchEvent(new Event(user?'stealth-site-session-changed':'stealth-site-session-ended'));
   if(!user||!user.devices?.some(d=>d.device_id===selectedDeviceId))selectedDeviceId='';
   const badge=document.getElementById('acctBadge');
@@ -447,7 +470,6 @@ function renderAccountState(user){
   if(inP)inP.style.display='block';
   document.getElementById('acctEmailVal').textContent=user.email||'—';
   document.getElementById('acctNameVal').textContent=user.name||user.email.split('@')[0];
-  document.getElementById('acctKeyCode').textContent=user.api_key||'—';
   const setupCmd='stealth-commander setup --enable-remote';
   document.getElementById('acctSetupCmd').textContent=setupCmd;
   const bCmd=document.getElementById('bannerSetupCmd');
@@ -721,6 +743,8 @@ async function poll(){
   finally{polling=false;}
 }
 window.addEventListener('beforeunload',clearPrivateState);
+window.addEventListener('blur',hideAccountKey);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')hideAccountKey();});
 window.addEventListener('hashchange',()=>{history.replaceState(null,'',location.pathname);});
 initApiBase().then(()=>{if(location.pathname==='/billing')showTab('account',document.getElementById('acctTabBtn'));poll();});setInterval(poll,2500);
 </script>

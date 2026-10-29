@@ -117,8 +117,8 @@ h1 { margin: 9px 0 7px; font-size: clamp(21px, 2.2vw, 30px); font-weight: 550; l
 .footer-separator { color: #7f518f; padding: 0 7px; }
 .layout-note { color: #a081b4; font: 9px/1.5 var(--mono); letter-spacing: 0; }
 .app-footer nav { display: flex; gap: 20px; }
-.app-footer button { color: #ceb7dd; padding: 0; border: 0; background: transparent; font: 9px/1 var(--mono); }
-.app-footer button:hover { color: var(--purple); }
+.app-footer button, .app-footer a { color: #ceb7dd; padding: 0; border: 0; background: transparent; font: 9px/1 var(--mono); text-decoration: none; }
+.app-footer button:hover, .app-footer a:hover { color: var(--purple); }
 .setup-dialog { width: min(680px, calc(100% - 32px)); max-height: calc(100dvh - 48px); overflow: auto; padding: 28px; border: 1px solid #9255b0; border-radius: 8px; background: #160d22; color: var(--text); box-shadow: 0 24px 90px #0009; }
 .setup-dialog::backdrop { background: #06030bd9; backdrop-filter: blur(5px); }
 .dialog-heading { display: flex; justify-content: space-between; gap: 18px; }

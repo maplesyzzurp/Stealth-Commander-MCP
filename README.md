@@ -1,5 +1,7 @@
 # Stealth Commander
 
+[Website](https://stealthcommander.pages.dev/) · [Account dashboard](https://stealthcommander.pages.dev/dashboard) · [Setup guide](https://stealthcommander.pages.dev/about#setup-title)
+
 This repository and its configured `origin/main` are the source of truth for the complete build and future releases. The prior repository is historical; publish updates from this checkout to its configured origin.
 
 Run supported Windows applications on hidden desktops and watch their captured windows in a local Chrome dashboard. The package contains the desktop launchers, PyCharm control bridge, optional REA browser adapter, capture workers, streaming server, dashboard UI, resource metrics, examples, and tests. No AI provider or model API key is required.

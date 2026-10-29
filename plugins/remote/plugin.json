@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "stealth-commander",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "description": "Connect ChatGPT to a Windows PC that you own and have paired with Stealth Commander.",
   "author": {
     "name": "nexusmap.ai",
@@ -35,10 +35,12 @@
           "List the tools available on my connected PC.",
           "Check which hidden desktop sessions are active."
         ],
-        "brandColor": "#176BCE",
-        "brandColorDark": "#479AF5",
+        "brandColor": "#a855f7",
+        "brandColorDark": "#c084fc",
         "composerIcon": "./assets/ninja-mask.png",
-        "logo": "./assets/ninja-mask.png"
+        "logo": "./assets/ninja-mask.png",
+        "composerIconDark": "./assets/ninja-mask.png",
+        "logoDark": "./assets/ninja-mask.png"
       }
     }
   }

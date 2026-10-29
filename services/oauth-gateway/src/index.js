@@ -9,7 +9,7 @@ import { signUpPage } from './sign-up-page.js';
 
 const CONTROL = 'pc:control';
 const SESSION_SECONDS = 43200;
-const PUBLIC_INFORMATION_PATHS = new Map([['/', '/landing'], ['/about', '/about'], ['/support', '/support'], ['/icon.png', '/icon.png'], ['/app.js', '/app.js'], ['/app.css', '/app.css']]);
+const PUBLIC_INFORMATION_PATHS = new Map([['/', '/landing'], ['/about', '/about'], ['/support', '/support'], ['/icon.png', '/icon.png'], ['/app.js', '/app.js'], ['/app.css', '/app.css'], ['/robots.txt', '/robots.txt'], ['/sitemap.xml', '/sitemap.xml'], ['/social-card.png', '/social-card.png']]);
 const htmlEscape = value => String(value).replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
 const digest = async value => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))), b => b.toString(16).padStart(2, '0')).join('');
 const json = (status, error, headers = {}) => Response.json({ error }, { status, headers: { 'Cache-Control': 'no-store', ...headers } });
@@ -342,6 +342,9 @@ export default {
         const homepage = path === '/', bundle = path === '/app.js' || path === '/app.css';
         if (path === '/app.js') headers.set('Content-Type', 'text/javascript; charset=utf-8');
         if (path === '/app.css') headers.set('Content-Type', 'text/css; charset=utf-8');
+        if (path === '/robots.txt') headers.set('Content-Type', 'text/plain; charset=utf-8');
+        if (path === '/sitemap.xml') headers.set('Content-Type', 'application/xml; charset=utf-8');
+        if (path === '/social-card.png') headers.set('Content-Type', 'image/png');
         headers.set('Cache-Control', homepage || bundle ? 'no-store' : 'public, max-age=300');
         headers.set('Content-Security-Policy', homepage
           ? "default-src 'none'; script-src 'self'; connect-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; form-action 'none'; frame-ancestors 'none'; base-uri 'none'"

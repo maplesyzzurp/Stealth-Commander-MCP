@@ -205,7 +205,7 @@ function Workspace() {
       </section>
       <DetailPanel selected={selected} navigate={navigate} openSetup={openSetup} endpoint={endpoint} onActivity={record} />
     </main>
-    <footer className="app-footer"><span>STEALTH COMMANDER <span className="footer-separator">/</span> WINDOWS X64</span><span className="layout-note">The map edits your layout. Use a button to open a service.</span><nav aria-label="Product information"><button type="button" onClick={() => navigate('/about', 'About')}>About</button><button type="button" onClick={() => navigate('/support', 'Support')}>Support</button></nav></footer>
+    <footer className="app-footer"><span>STEALTH COMMANDER <span className="footer-separator">/</span> WINDOWS X64</span><span className="layout-note">The map edits your layout. Use a button to open a service.</span><nav aria-label="Product information"><button type="button" onClick={() => navigate('/about', 'About')}>About</button><button type="button" onClick={() => navigate('/support', 'Support')}>Support</button><a href="https://github.com/maplesyzzurp/Stealth-Commander-MCP">GitHub</a></nav></footer>
     <SetupDialog open={setupOpen} onClose={() => { setSetupOpen(false); record('Closed setup instructions.'); }} onActivity={record} />
     <span className="sr-only" aria-live="polite">{announcement}</span>
   </div>;
