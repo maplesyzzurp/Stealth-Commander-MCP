@@ -12,12 +12,25 @@ const PASSWORD = 'synthetic-password-only';
 let mf, users, oauth, upstreamCalls = [], assetRequests = [], upstreamMode = 'json', sequence = 0;
 let browserSequence = 0;
 
+function fixedTestWindowLimiter() {
+  const counts = new Map();
+  // Each test uses fresh account/source identities. Keep their ten-request
+  // window fixed so a real minute rollover cannot reset a test mid-assertion.
+  return async request => {
+    assert.equal(request.method, 'POST');
+    const { key } = await request.json();
+    assert.match(key, /^(signin|dcr):(source|account):[a-f0-9]{64}$/);
+    const count = (counts.get(key) || 0) + 1;
+    counts.set(key, count);
+    return Response.json({ success: count <= 10 });
+  };
+}
+
 before(async () => {
   mf = new Miniflare({ workers: [{
     name: 'gateway', modules: true, scriptPath: 'build/worker.js', compatibilityDate: '2026-07-30', compatibilityFlags: ['global_fetch_strictly_public'],
     bindings: { GATEWAY_ORIGIN: ORIGIN, LEGACY_MCP_URL_KEYS_ENABLED: 'true', CONTROL_CSRF_SECRET: 'synthetic-control-secret-at-least-32-chars' }, kvNamespaces: ['STEALTH_AUTH', 'OAUTH_KV'],
-    ratelimits: { AUTH_RATE_LIMITER: { namespace_id: '1', simple: { limit: 10, period: 60 } }, REGISTRATION_RATE_LIMITER: { namespace_id: '2', simple: { limit: 10, period: 60 } } },
-    serviceBindings: { ASSETS: request => { assetRequests.push(request.url); return new Response('synthetic website'); }, AUTH_STORE: 'auth-store' },
+    serviceBindings: { ASSETS: request => { assetRequests.push(request.url); return new Response('synthetic website'); }, AUTH_STORE: 'auth-store', AUTH_RATE_LIMITER: fixedTestWindowLimiter(), REGISTRATION_RATE_LIMITER: fixedTestWindowLimiter() },
     outboundService: async request => {
       upstreamCalls.push({ url: request.url, method: request.method, headers: Object.fromEntries(request.headers), body: await request.text() });
       const url = new URL(request.url);
@@ -489,7 +502,7 @@ test('owner re-pair, account rotation, own unpair and credential expiry revoke o
   }
 });
 
-test('new registrations need 12 characters; native rate limiting stops repeated logins, sign-ins and DCR', async () => {
+test('new registrations need 12 characters; rate limiting stops repeated logins, sign-ins and DCR', async () => {
   const browser = new Browser();
   const register = async password => browser.fetch('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: ORIGIN }, body: JSON.stringify({ email: `registered${sequence}@example.test`, password }) });
   assert.equal((await register('123456')).status, 400);
