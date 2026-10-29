@@ -4,6 +4,7 @@ import './app.css';
 
 const installCommands = ['node ./bin/stealth-commander.js install', 'node ./bin/stealth-commander.js doctor'];
 const pairingCommands = ['node ./bin/stealth-commander.js login', 'node ./bin/stealth-commander.js setup --enable-remote'];
+const connectionSteps = [{ id: 'account', label: 'Account' }, { id: 'windows', label: 'Windows' }, { id: 'connect', label: 'Connect' }];
 
 function CopyButton({ value, label = 'Copy', onActivity }) {
   const [feedback, setFeedback] = useState('');
@@ -55,6 +56,8 @@ function SetupDialog({ open, onClose, onActivity }) {
 
 export function App() {
   const [setupOpen, setSetupOpen] = useState(window.location.hash === '#setup');
+  const [selectedStep, setSelectedStep] = useState(window.location.hash === '#setup' ? 'windows' : 'account');
+  const tabRefs = useRef([]);
   const [sessionState, setSessionState] = useState('checking');
   const [announcement, setAnnouncement] = useState('');
   const activeCheck = useRef(null);
@@ -101,10 +104,21 @@ export function App() {
     };
   }, [checkSession, record]);
   useEffect(() => {
-    const handleHash = () => { if (window.location.hash === '#setup') setSetupOpen(true); };
+    const handleHash = () => { if (window.location.hash === '#setup') { setSelectedStep('windows'); setSetupOpen(true); } };
     window.addEventListener('hashchange', handleHash);
     return () => window.removeEventListener('hashchange', handleHash);
   }, []);
+  function navigateSteps(event, index) {
+    let next;
+    if (event.key === 'ArrowRight') next = (index + 1) % connectionSteps.length;
+    else if (event.key === 'ArrowLeft') next = (index + connectionSteps.length - 1) % connectionSteps.length;
+    else if (event.key === 'Home') next = 0;
+    else if (event.key === 'End') next = connectionSteps.length - 1;
+    else return;
+    event.preventDefault();
+    setSelectedStep(connectionSteps[next].id);
+    tabRefs.current[next]?.focus();
+  }
   const signedIn = sessionState === 'authenticated';
   const sessionLabel = { checking: 'Checking account', authenticated: 'Signed in', 'signed-out': 'Not signed in', unavailable: 'Account check unavailable' }[sessionState];
   const primaryHref = signedIn ? '/dashboard' : '/sign-up';
@@ -119,28 +133,29 @@ export function App() {
     <main className="landing-main">
       <section className="hero" aria-labelledby="hero-title">
         <h1 id="hero-title">Delegate work to your <span>Windows desktop.</span></h1>
-        <p>Connect your PC to your AI assistant. Pair your device, authorize access, and manage desktop sessions from your dashboard.</p>
-        <div className="hero-actions"><a className="button button-primary" href={primaryHref}>{primaryLabel}</a><button type="button" className="button" onClick={() => setSetupOpen(true)}>Set up Windows</button></div>
+        <p>Connect your PC to your AI assistant.</p>
       </section>
-      <section className="setup-section" aria-labelledby="setup-title">
-        <h2 id="setup-title">Get connected</h2>
+      <section className="setup-section" aria-label="Connection setup">
+        <div className="setup-tabs" role="tablist" aria-label="Connection steps">
+          {connectionSteps.map((step, index) => <button key={step.id} ref={element => { tabRefs.current[index] = element; }} type="button" role="tab" id={`step-${step.id}`} aria-selected={selectedStep === step.id} aria-controls={`panel-${step.id}`} tabIndex={selectedStep === step.id ? 0 : -1} onClick={() => setSelectedStep(step.id)} onKeyDown={event => navigateSteps(event, index)}><span aria-hidden="true">{index + 1}.</span> {step.label}</button>)}
+        </div>
         <div className="setup-cards">
-          <article className="setup-card">
-            <h3><span aria-hidden="true">1.</span> Your account</h3>
-            <p>{signedIn ? 'Manage your paired PCs and choose which device your assistant can access.' : 'Create an account to manage your PCs and authorize connections.'}</p>
+          <article className="setup-card" id="panel-account" role="tabpanel" aria-labelledby="step-account" tabIndex="0" hidden={selectedStep !== 'account'}>
+            <h3>Your account</h3>
+            <p>{signedIn ? 'Manage your PCs and choose which device your assistant can access.' : 'Create an account to manage your PCs and authorize connections.'}</p>
             <div className="card-actions"><a className="button" href={primaryHref}>{primaryLabel}</a>{!signedIn && <a className="text-link" href="/sign-in">Already have an account? Sign in</a>}</div>
           </article>
-          <article className="setup-card">
-            <h3><span aria-hidden="true">2.</span> Prepare your PC</h3>
-            <p>Install the Windows client from your source archive, then sign in and pair your PC.</p>
+          <article className="setup-card" id="panel-windows" role="tabpanel" aria-labelledby="step-windows" tabIndex="0" hidden={selectedStep !== 'windows'}>
+            <h3>Prepare your PC</h3>
+            <p>Install the Windows client, then sign in and pair your PC.</p>
             <p className="requirements">Windows x64, Node.js 18+, Python 3.11+ x64.</p>
             <div className="card-actions"><button type="button" className="button" onClick={() => setSetupOpen(true)}>Open setup instructions</button></div>
           </article>
-          <article className="setup-card">
-            <h3><span aria-hidden="true">3.</span> Connect your assistant</h3>
-            <p>Add this endpoint in a compatible MCP client, sign in with OAuth, and choose your paired PC.</p>
+          <article className="setup-card" id="panel-connect" role="tabpanel" aria-labelledby="step-connect" tabIndex="0" hidden={selectedStep !== 'connect'}>
+            <h3>Connect your assistant</h3>
+            <p>Add this endpoint to your MCP client. Sign in with OAuth and select your PC.</p>
             <div className="endpoint-box"><code tabIndex="0" aria-label="MCP endpoint">{endpoint}</code><CopyButton value={endpoint} label="Copy endpoint" onActivity={record} /></div>
-            <p className="small-note">Keep the PC online with its Windows client running.</p>
+            <p className="small-note">Keep your PC online with the client running.</p>
           </article>
         </div>
       </section>
