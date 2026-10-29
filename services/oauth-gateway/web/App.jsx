@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { addEdge, Background, BackgroundVariant, Handle, MarkerType, Position, ReactFlow, ReactFlowProvider, useEdgesState, useNodesState, useReactFlow } from '@xyflow/react';
+import { Background, BackgroundVariant, Handle, MarkerType, Position, ReactFlow, ReactFlowProvider, useKeyPress, useNodesState, useReactFlow } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import './app.css';
 
@@ -21,10 +21,10 @@ const stepById = Object.fromEntries(steps.map(step => [step.id, step]));
 
 function StepNode({ data, selected }) {
   return <div className={`step-node${selected ? ' is-selected' : ''}`}>
-    <Handle type="target" position={Position.Left} aria-label={`Connect to ${data.title}`} />
-    <div className="node-heading"><span className="node-number">{data.number}</span><span>{data.category}</span><span className="node-selection" aria-hidden="true">{selected ? '−' : '+'}</span></div>
-    <strong>{data.title}</strong><p>{data.summary}</p><div className="node-footer"><span>{data.tag}</span><span aria-hidden="true">↗</span></div>
-    <Handle type="source" position={Position.Right} aria-label={`Connect from ${data.title}`} />
+    <Handle type="target" position={Position.Left} isConnectable={false} />
+    <div className="node-heading"><span className="node-number">{data.number}</span><span>{data.category}</span></div>
+    <strong>{data.title}</strong><p>{data.summary}</p><div className="node-footer"><span>{data.tag}</span></div>
+    <Handle type="source" position={Position.Right} isConnectable={false} />
   </div>;
 }
 const nodeTypes = { step: StepNode };
@@ -62,7 +62,6 @@ function SetupDialog({ open, onClose, onActivity }) {
 function DetailPanel({ selected, navigate, openSetup, endpoint, onActivity }) {
   const step = stepById[selected];
   return <aside className="detail-panel" aria-label="Selected step actions">
-    <div className="detail-header"><span className="eyebrow">STEP {step.number} / {step.category}</span><span className="detail-index">{step.number}<span> / 05</span></span></div>
     <div className="detail-content" key={selected}>
       <h2>{step.title}</h2>
       {selected === 'account' && <>
@@ -95,7 +94,7 @@ function DetailPanel({ selected, navigate, openSetup, endpoint, onActivity }) {
         <div className="detail-note"><span className="eyebrow">WINDOW OBSERVATIONS</span><p>Supported sessions can publish cached window images. Availability depends on the application, capture method, and installed runtime.</p></div>
       </>}
     </div>
-    <div className="roadmap"><span className="eyebrow">UP NEXT</span><p>Mac, Linux, and more stealth tools coming soon.</p><span>Current client: Windows x64.</span></div>
+    <div className="roadmap"><p>Mac, Linux, and more stealth tools coming soon.</p></div>
   </aside>;
 }
 
@@ -104,20 +103,14 @@ function Workspace() {
   const [selected, setSelected] = useState(initialSelected);
   const initialNodes = useMemo(() => steps.map(step => ({ id: step.id, type: 'step', position: { ...step.position }, data: step, selected: step.id === initialSelected })), []);
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const [setupOpen, setSetupOpen] = useState(window.location.hash === '#setup');
-  const [inspectorTab, setInspectorTab] = useState('status');
   const [sessionState, setSessionState] = useState('checking');
-  const [activity, setActivity] = useState([]);
   const [announcement, setAnnouncement] = useState('');
-  const sequence = useRef(0);
   const activeCheck = useRef(null);
   const flow = useReactFlow();
+  const ctrlPressed = useKeyPress('Control', { preventDefault: false });
   const endpoint = new URL('/mcp', window.location.origin).href;
-  const record = useCallback(message => {
-    const event = { id: ++sequence.current, message, time: new Date().toLocaleTimeString([], { hour12: false }) };
-    setActivity(previous => [event, ...previous].slice(0, 20));
-  }, []);
+  const record = useCallback(message => setAnnouncement(message), []);
   const checkSession = useCallback(async () => {
     activeCheck.current?.abort();
     if (navigator.onLine === false) {
@@ -158,11 +151,10 @@ function Workspace() {
       activeCheck.current?.abort(); activeCheck.current = null;
     };
   }, [checkSession, record]);
-  const selectStep = useCallback((id, focus = false) => {
+  const selectStep = useCallback(id => {
     setSelected(id); setNodes(previous => previous.map(node => ({ ...node, selected: node.id === id })));
     record(`Selected ${stepById[id].title.toLowerCase()}.`);
-    if (focus) flow.fitView({ nodes: [{ id }], padding: .65, maxZoom: 1.1, duration: 220 });
-  }, [flow, record, setNodes]);
+  }, [record, setNodes]);
   const openSetup = useCallback(() => { setSetupOpen(true); record('Opened Windows setup instructions.'); }, [record]);
   useEffect(() => {
     const handleHash = () => { if (window.location.hash === '#setup') { selectStep('client'); openSetup(); } };
@@ -171,41 +163,34 @@ function Workspace() {
   function navigate(path, label) { record(`Opened ${label.toLowerCase()}.`); window.location.assign(path); }
   function resetMap() {
     setNodes(steps.map(step => ({ id: step.id, type: 'step', position: { ...step.position }, data: step, selected: step.id === 'account' })));
-    setEdges(initialEdges.map(edge => ({ ...edge }))); setSelected('account');
+    setSelected('account');
     window.requestAnimationFrame(() => flow.fitView({ padding: .2, duration: 220, maxZoom: 1 }));
     record('Reset the connection map.'); setAnnouncement('Map layout reset. Your account and PCs were not changed.');
-  }
-  function connect(params) {
-    if (params.source === params.target) return;
-    setEdges(previous => addEdge({ ...params, type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed, width: 17, height: 17 } }, previous));
-    record('Added a connection to the map layout.');
   }
   const sessionLabel = { checking: 'Checking account', authenticated: 'Signed in', 'signed-out': 'Not signed in', unavailable: 'Account check unavailable' }[sessionState];
   return <div className="command-app">
     <header className="app-header">
-      <button type="button" className="brand-button" onClick={resetMap} aria-label="Stealth Commander — reset connection map"><span className="brand-mark"><img src="/icon.png" width="40" height="40" alt="" /></span><span><strong>Stealth Commander</strong><small>CONNECTION WORKSPACE</small></span></button>
+      <button type="button" className="brand-button" onClick={resetMap} aria-label="Stealth Commander — reset connection map"><span className="brand-mark"><img src="/icon.png" width="40" height="40" alt="" /></span><span><strong>Stealth Commander</strong></span></button>
       <div className="header-session" role="status" aria-label={sessionLabel} title={sessionLabel}><span className={`status-square ${sessionState === 'authenticated' ? 'is-known' : 'is-unconfirmed'}`} aria-hidden="true"/><span className="session-label">{sessionLabel}</span></div>
-      <nav className="header-actions" aria-label="Account navigation"><button type="button" className="button button-quiet header-signin" onClick={() => navigate('/sign-in', 'Sign in')}>Sign in</button><button type="button" className="button button-primary" onClick={() => navigate('/sign-up', 'Create account')}>Create account <span aria-hidden="true">↗</span></button></nav>
+      <a className="header-github" href="https://github.com/maplesyzzurp/Stealth-Commander-MCP" target="_blank" rel="noopener noreferrer" aria-label="GitHub repository" title="Open GitHub repository"><svg viewBox="0 0 24 24" width="23" height="23" fill="currentColor" aria-hidden="true"><path d="M12 .75a11.25 11.25 0 0 0-3.56 21.92c.56.1.77-.24.77-.54v-2.1c-3.13.68-3.79-1.33-3.79-1.33-.51-1.3-1.25-1.64-1.25-1.64-1.02-.7.08-.69.08-.69 1.13.08 1.72 1.16 1.72 1.16 1 1.71 2.63 1.22 3.27.93.1-.73.39-1.22.71-1.5-2.5-.28-5.13-1.25-5.13-5.56 0-1.23.44-2.23 1.16-3.02-.12-.28-.5-1.43.11-2.98 0 0 .95-.3 3.1 1.15a10.78 10.78 0 0 1 5.64 0c2.15-1.46 3.1-1.15 3.1-1.15.61 1.55.23 2.7.11 2.98.72.79 1.16 1.79 1.16 3.02 0 4.32-2.63 5.27-5.14 5.55.4.35.76 1.04.76 2.1v3.08c0 .3.2.65.78.54A11.25 11.25 0 0 0 12 .75Z"/></svg></a>
+      <nav className="header-actions" aria-label="Account navigation">{sessionState === 'authenticated' ? <button type="button" className="button button-primary" onClick={() => navigate('/dashboard', 'Dashboard')}>Open dashboard</button> : <><button type="button" className="button button-quiet header-signin" onClick={() => navigate('/sign-in', 'Sign in')}>Sign in</button><button type="button" className="button button-primary" onClick={() => navigate('/sign-up', 'Create account')}>Create account</button></>}</nav>
     </header>
     <main className="workspace">
       <section className="map-workspace" aria-label="Interactive connection map">
-        <div className="map-title"><div><span className="eyebrow">CURRENT PLATFORM / WINDOWS X64</span><h1>Connect your PC. Choose your tools.</h1><p>Select a step to see its actions.</p></div><span className="map-label">INTERACTIVE MAP</span></div>
+        <div className="map-title"><div><h1>Connect your PC. Choose your tools.</h1><p>Select a step to open its controls.</p></div></div>
         <div className="map-surface">
-          <div className="step-selector" aria-label="Select a connection step">{steps.map(step => <button type="button" key={step.id} aria-pressed={selected === step.id} onClick={() => selectStep(step.id, true)} title={step.title}><span>{step.number}</span><span className="step-selector-label">{step.category}</span></button>)}</div>
-          <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onNodeClick={(_, node) => selectStep(node.id)} onNodeDragStop={(_, node) => record(`Moved ${stepById[node.id].title.toLowerCase()} in the map.`)} onConnect={connect} onEdgesDelete={() => record('Removed a connection from the map layout.')} fitView fitViewOptions={{ padding: .2, maxZoom: 1 }} minZoom={.3} maxZoom={1.6} deleteKeyCode={['Backspace', 'Delete']} defaultEdgeOptions={{ type: 'smoothstep' }}>
+          <div className="step-selector" aria-label="Select a connection step">{steps.map(step => <button type="button" key={step.id} aria-pressed={selected === step.id} onClick={() => selectStep(step.id)} title={step.title}><span>{step.number}</span><span className="step-selector-label">{step.category}</span></button>)}</div>
+          <ReactFlow nodes={nodes} edges={initialEdges} nodeTypes={nodeTypes} onNodesChange={onNodesChange} onNodeClick={(_, node) => selectStep(node.id)} fitView fitViewOptions={{ padding: .2, maxZoom: 1 }} minZoom={.3} maxZoom={1.6} nodesConnectable={false} edgesReconnectable={false} deleteKeyCode={null} zoomOnScroll={false} zoomActivationKeyCode="Control" zoomOnPinch={ctrlPressed} zoomOnDoubleClick={false} panOnScroll={false} preventScrolling={false} defaultEdgeOptions={{ type: 'smoothstep', selectable: false }}>
             <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#352242" />
           </ReactFlow>
-          <div className="canvas-hint">Drag to arrange <span>·</span> Connect handles to edit the map</div>
+          <div className="canvas-hint">Ctrl + scroll to zoom</div>
           <div className="map-controls" aria-label="Map view controls"><button type="button" aria-label="Zoom out" onClick={() => { flow.zoomOut({ duration: 140 }); record('Zoomed out.'); }}>−</button><button type="button" aria-label="Zoom in" onClick={() => { flow.zoomIn({ duration: 140 }); record('Zoomed in.'); }}>+</button><button type="button" onClick={() => { flow.fitView({ padding: .2, duration: 220, maxZoom: 1 }); record('Fit the connection map to view.'); }}>Fit</button><button type="button" onClick={resetMap}>Reset</button></div>
         </div>
-        <section className="inspector" aria-label="System and activity inspector">
-          <div className="inspector-heading"><div className="inspector-tabs" role="tablist" aria-label="Inspector"><button type="button" id="status-tab" role="tab" aria-selected={inspectorTab === 'status'} aria-controls="status-panel" onClick={() => setInspectorTab('status')}>System status</button><button type="button" id="activity-tab" role="tab" aria-selected={inspectorTab === 'activity'} aria-controls="activity-panel" onClick={() => setInspectorTab('activity')}>Activity <span>{activity.length}</span></button></div><span className="eyebrow inspector-label">LOCAL UI / THIS VISIT</span></div>
-          {inspectorTab === 'status' ? <div id="status-panel" role="tabpanel" aria-labelledby="status-tab" className="status-grid"><div><span className="status-label">ACCOUNT SESSION</span><strong>{sessionLabel}</strong><button type="button" className="text-button" onClick={checkSession} disabled={sessionState === 'checking'}>{sessionState === 'checking' ? 'Checking…' : 'Check again ↗'}</button></div><div><span className="status-label">PAIRED PC</span><strong>Not checked</strong><button type="button" className="text-button" onClick={() => navigate('/dashboard', 'Dashboard')}>Inspect in dashboard ↗</button></div><div><span className="status-label">WINDOWS CLIENT</span><strong>Private distribution</strong><button type="button" className="text-button" onClick={openSetup}>Setup instructions ↗</button></div></div> : <div id="activity-panel" role="tabpanel" aria-labelledby="activity-tab" className="activity-list" tabIndex="0">{activity.length ? activity.map(event => <div className="activity-row" key={event.id}><time>{event.time}</time><span>{event.message}</span></div>) : <p>Actions you take in this workspace appear here.</p>}</div>}
-        </section>
+
       </section>
       <DetailPanel selected={selected} navigate={navigate} openSetup={openSetup} endpoint={endpoint} onActivity={record} />
     </main>
-    <footer className="app-footer"><span>STEALTH COMMANDER <span className="footer-separator">/</span> WINDOWS X64</span><span className="layout-note">The map edits your layout. Use a button to open a service.</span><nav aria-label="Product information"><button type="button" onClick={() => navigate('/about', 'About')}>About</button><button type="button" onClick={() => navigate('/support', 'Support')}>Support</button><a href="https://github.com/maplesyzzurp/Stealth-Commander-MCP">GitHub</a></nav></footer>
+    <footer className="app-footer"><nav aria-label="Product information"><button type="button" onClick={() => navigate('/about', 'About')}>About</button><button type="button" onClick={() => navigate('/support', 'Support')}>Support</button></nav></footer>
     <SetupDialog open={setupOpen} onClose={() => { setSetupOpen(false); record('Closed setup instructions.'); }} onActivity={record} />
     <span className="sr-only" aria-live="polite">{announcement}</span>
   </div>;
