@@ -282,26 +282,51 @@ def _native_source_state(folder):
             or not isinstance(launch.get('exe'), str) or not Path(launch['exe']).is_absolute()
             or Path(launch['exe']).resolve() != Path(state['executable']).resolve()):
         raise ValueError('Invalid native session launch identity.')
-    if not native.same_process(launch, native.process_identity(launch['pid'])):
-        raise RuntimeError('The native launch process identity changed.')
-    process = h.psutil.Process(launch['pid'])
-    parent = process.parent()
-    if parent is None or not native.same_process(state['guardian'], native.process_identity(parent.pid)):
-        raise RuntimeError('The native launch process does not belong to its guardian.')
-    source = {**state, 'pid': launch['pid'], 'process_created': launch['created'],
-              'ide_executable': launch['exe']}
-    expected = {launch['pid']: launch}
-    for child in process.children(recursive=True):
-        expected[child.pid] = native.process_identity(child.pid)
+    # Ask the exact guardian for its current job membership. The launch process may
+    # have exited after creating children; file snapshots and parent PIDs cannot
+    # establish ownership after that handoff.
+    response = native.command(argparse.Namespace(action='status', session=str(folder)))
+    current = response.get('result')
+    if response.get('ok') is not True or not isinstance(current, dict):
+        raise RuntimeError('The native guardian did not confirm its owned job.')
+    if any(current.get(key) != state.get(key) for key in
+           ('schema', 'session', 'desktop', 'guardian', 'launch', 'executable')):
+        raise RuntimeError('The native guardian or session identity changed.')
+    heartbeat = current.get('heartbeat')
+    if (current.get('status') not in ('running', 'ready') or type(heartbeat) not in (int, float)
+            or not math.isfinite(heartbeat) or not 0 <= time.time() - heartbeat <= 3
+            or not isinstance(current.get('processes'), list) or not isinstance(current.get('windows'), list)):
+        raise RuntimeError('The native guardian job snapshot is unavailable or stale.')
+    expected = {}
+    for item in current['processes']:
+        if (not isinstance(item, dict) or type(item.get('pid')) is not int or item['pid'] <= 0
+                or type(item.get('created')) not in (int, float) or not math.isfinite(item['created'])
+                or item['created'] < launch['created'] or not isinstance(item.get('exe'), str)
+                or not Path(item['exe']).is_absolute() or item['pid'] in expected):
+            raise ValueError('Invalid native job process identity.')
+        expected[item['pid']] = item
+    owned = {}
+    for window in current['windows']:
+        if (not isinstance(window, dict) or type(window.get('hwnd')) is not int or window['hwnd'] <= 0
+                or type(window.get('tid')) is not int or window['tid'] <= 0
+                or window.get('pid') not in expected
+                or not native.same_process(expected[window['pid']], window)):
+            raise ValueError('Invalid native job window identity.')
+        owned[window['hwnd']] = window
+    guardian = current['guardian']
+    source = {**current, 'pid': guardian['pid'], 'process_created': guardian['created'],
+              'ide_executable': guardian['exe']}
     desktop = h.win32service.OpenDesktop(
         state['desktop'], 0, False, h.win32con.DESKTOP_READOBJECTS | h.win32con.DESKTOP_ENUMERATE)
     attached = []
     try:
         native.inactive(desktop, state['desktop'])
         def visit(hwnd, _):
-            _, pid = h.win32process.GetWindowThreadProcessId(hwnd)
-            if (pid in expected and h.win32gui.IsWindowVisible(hwnd)
-                    and native.same_process(expected[pid], native.process_identity(pid))):
+            tid, pid = h.win32process.GetWindowThreadProcessId(hwnd)
+            window = owned.get(hwnd)
+            if window and pid == window['pid'] and tid == window['tid'] and h.win32gui.IsWindowVisible(hwnd):
+                if not native.same_process(expected[pid], native.process_identity(pid)):
+                    raise RuntimeError('The native job process identity changed.')
                 attached.append(hwnd)
             return True
         h.win32gui.EnumDesktopWindows(desktop, visit, None)
@@ -310,9 +335,21 @@ def _native_source_state(folder):
         desktop.CloseDesktop()
     if not attached:
         raise RuntimeError('The native session has no owned window on its inactive desktop.')
-    if not native.guardian_alive(state) or not native.same_process(launch, native.process_identity(launch['pid'])):
+    if not native.guardian_alive(current):
         raise RuntimeError('The native source identity changed during verification.')
     return source
+
+
+def native_window_owned(source, record):
+    """Match a frame against a freshly verified native guardian's job snapshot."""
+    import native_desktop as native
+    if source.get('schema') != native.SCHEMA:
+        return False
+    expected = {'pid': record['pid'], 'created': record['process_created'],
+                'exe': record['process_executable']}
+    return (any(native.same_process(expected, process) for process in source['processes'])
+            and any(window['hwnd'] == record['hwnd'] and native.same_process(expected, window)
+                    for window in source['windows']))
 
 
 def source_state(folder):
@@ -559,6 +596,12 @@ def _stage_frame(folder, source, scope='session', capture_sequence=None, encode_
                     raise RuntimeError('Window exceeds the capture pixel limit.')
                 process = h.psutil.Process(target['pid'])
                 process_identity = (process.create_time(), process.exe())
+                if isinstance(session_pids, dict):
+                    import native_desktop as native
+                    expected = session_pids.get(target['pid'])
+                    if expected is None or not native.same_process(expected, {
+                            'pid': target['pid'], 'created': process_identity[0], 'exe': process_identity[1]}):
+                        raise RuntimeError('The native job process identity changed.')
                 if not display_affinity_allowed(target['hwnd']):
                     raise RuntimeError('The window disallows observation or its protection could not be queried.')
                 rect, width, height, data, method = _grab_window_raw(target)
@@ -741,7 +784,12 @@ def _make_export_verifier(source, token, scope):
                            os.path.normcase(os.path.abspath(data["process_executable"]))):
                     self._reply(409)
                     return
-                if scope == "session" and data["pid"] != owned.pid:
+                if scope == "session" and source.get('schema') == 'stealth-native-v1':
+                    fresh = source_state(source['session'])
+                    if identity(fresh) != identity(source) or not native_window_owned(fresh, data):
+                        self._reply(409)
+                        return
+                elif scope == "session" and data["pid"] != owned.pid:
                     if owned.pid not in {p.pid for p in process.parents()}:
                         self._reply(409)
                         return
@@ -819,8 +867,11 @@ def worker(folder):
                 if identity(fresh) != identity(source):
                     raise RuntimeError('Source process identity changed.')
                 if config.get('scope', 'session') != 'desktop':
-                    proc = h.owned_process(source)
-                    session_pids = {proc.pid, *(p.pid for p in proc.children(recursive=True))}
+                    if fresh.get('schema') == 'stealth-native-v1':
+                        session_pids = {process['pid']: process for process in fresh['processes']}
+                    else:
+                        proc = h.owned_process(source)
+                        session_pids = {proc.pid, *(p.pid for p in proc.children(recursive=True))}
                 last_source_check = now
             drain_ready(block_oldest=True)
             capture_sequence += 1
@@ -1006,15 +1057,6 @@ def main():
     args = parser.parse_args()
     h.dependencies(False)
     h.native_modules()
-    _orig_input_desktop = h.input_desktop
-    def _safe_input_desktop():
-        try:
-            return _orig_input_desktop()
-        except Exception as exc:
-            if getattr(exc, 'winerror', None) == 5 or 'OpenInputDesktop' in str(exc):
-                return 'Winlogon'
-            raise
-    h.input_desktop = _safe_input_desktop
     if args.command == 'start':
         result = start(args)
     else:
@@ -1034,12 +1076,21 @@ def main():
                     raise TimeoutError('Observer stop not confirmed; inspect its state and log.')
                 time.sleep(.1)
         result = {**config, 'health': read(folder / 'browser-session.json')}
+    if args.command == 'stop':
+        state = result['health']
+        cleanup = state.get('cleanup') or {}
+        if (state.get('status') != 'stopped' or type(cleanup.get('active_processes')) is not int
+                or cleanup['active_processes'] != 0 or cleanup.get('worker_alive') is not False):
+            print(json.dumps({'ok': False, 'error': 'Observer cleanup could not be confirmed.',
+                              'result': result}), flush=True)
+            return 1
     print(json.dumps({'ok': True, 'result': result}), flush=True)
+    return 0
 
 
 if __name__ == '__main__':
     try:
-        main()
+        sys.exit(main())
     except Exception as error:
         print(json.dumps({'ok': False, 'error': str(error)}), flush=True)
         sys.exit(1)

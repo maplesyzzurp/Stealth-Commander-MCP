@@ -84,7 +84,7 @@ project and its own IDE configuration. Review captured PNGs as well as hashes.
 | Cached MCP image | Actual image content block, published exact hash/sequence, freshness, identity and mismatched-reference rejection | Reads an existing published frame; never triggers target capture |
 | Generic command | Exact stdout/stderr/return code, timeout/error behavior | Account-level command execution; GUI isolation is not guaranteed |
 | Installer/package | Source/manifest/archive parity, supported prerequisites, separate dependency cache identity, isolated install/upgrade/rollback, config preservation | Fixture tests do not replace a fresh Windows installation |
-| Icon/publisher | Exact approved ninja image in source and installed manifests; Nexusmap.ai attribution | Cloud connector and local plugin are different distributions |
+| Icon/publisher | Exact approved ninja image in source and installed manifests; nexusmap.ai attribution | Cloud connector and local plugin are different distributions |
 | Remote authorization | Login/consent/explicit paired PC, second-account rejection, expired/revoked credentials, replay/alias/rate limits, logout/unlink/tunnel cleanup | Unit tests and historical results do not replace fresh exact-release acceptance |
 | Public submission | Verified publisher identity, public support/privacy/terms, recorded demo and executable reviewer examples | Do not fabricate legal policies, reviewer results, or identity verification |
 

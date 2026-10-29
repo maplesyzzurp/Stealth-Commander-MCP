@@ -7,6 +7,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
 from pathlib import Path
+import sys
 import tempfile
 import threading
 import time
@@ -209,6 +210,32 @@ class CachedReadTests(Fixture):
 
 
 class IdentityTests(Fixture):
+    def test_native_session_export_uses_guardian_job_membership_after_parent_exit(self):
+        self.watch['source'] = str(self.root)
+        (self.root / 'native-session.json').write_text('{}')
+        self.source['config'] = c.approved_config(self.watch)
+        record = {**self.record, 'pid': 404, 'process_created': self.now - 10}
+        child = {'pid': 404, 'created': record['process_created'], 'exe': record['process_executable']}
+        fresh = {'schema': 'stealth-native-v1', 'desktop': self.identity[0], 'pid': self.identity[1],
+                 'process_created': self.identity[2], 'ide_executable': self.identity[3],
+                 'processes': [child], 'windows': [{'hwnd': record['hwnd'], **child}]}
+        process = types.SimpleNamespace(pid=404, create_time=lambda: record['process_created'],
+            exe=lambda: record['process_executable'], is_running=lambda: True, parents=lambda: [])
+        anchor = types.SimpleNamespace(pid=101)
+        with (mock.patch.object(c.h, 'psutil', types.SimpleNamespace(Process=lambda pid: process), create=True),
+              mock.patch.object(c.h, 'owned_process', return_value=anchor),
+              mock.patch.object(c.h, 'input_desktop', return_value='SyntheticInput'),
+              mock.patch.object(w, 'source_state', return_value=fresh),
+              mock.patch.object(c, '_verify_at_observer')):
+            c.verify_window_binding(self.source['config'], record, self.source)
+            fresh['processes'] = []
+            with self.assertRaises(c.Unavailable):
+                c.verify_window_binding(self.source['config'], record, self.source)
+            fresh['processes'] = [child]
+            fresh['pid'] = 999
+            with self.assertRaises(c.Unavailable):
+                c.verify_window_binding(self.source['config'], record, self.source)
+
     def test_controller_rejects_wrong_scope_process_or_input_desktop_and_requires_worker(self):
         process = mock.Mock(pid=101)
         process.create_time.return_value = self.identity[2]
@@ -252,6 +279,65 @@ class IdentityTests(Fixture):
             staged = w._stage_frame(self.root, {"desktop": self.identity[0]}, capture_sequence=1)
         render.assert_not_called()
         self.assertEqual(staged["staged_entries"][0][0]["status"], "unavailable")
+
+    def test_native_session_capture_rejects_reused_job_pid_before_rendering(self):
+        target = {"hwnd": 42, "pid": 101, "title": "Synthetic", "rect": [0, 0, 1, 1]}
+        expected = {'pid': 101, 'created': self.identity[2], 'exe': self.identity[3]}
+        process = types.SimpleNamespace(create_time=lambda: self.identity[2] + 1, exe=lambda: self.identity[3])
+        gui = types.SimpleNamespace(GetTopWindow=lambda _: 0, IsIconic=lambda _: False)
+        with (mock.patch.object(w, '_ensure_thread_dpi'), mock.patch.object(w.h, 'assert_isolation'),
+              mock.patch.object(w, 'desktop_windows', return_value=[target]),
+              mock.patch.object(w, 'desktop_target', return_value=target),
+              mock.patch.object(w.h, 'win32gui', gui, create=True),
+              mock.patch.object(w.h, 'psutil', types.SimpleNamespace(Process=lambda _: process), create=True),
+              mock.patch.object(w, '_grab_window_raw', side_effect=AssertionError('No rendering')) as render):
+            staged = w._stage_frame(self.root, {'desktop': self.identity[0]}, session_pids={101: expected})
+        render.assert_not_called()
+        self.assertEqual(staged['staged_entries'][0][0]['status'], 'unavailable')
+        self.assertIn('identity changed', staged['staged_entries'][0][0]['error'])
+
+
+class VerifierClientTests(Fixture):
+    def setUp(self):
+        super().setUp()
+        self.requests = []
+        self.state.update(verifier_port=23456, verifier_token="v" * 43)
+        self.write_all()
+        self.listener = types.SimpleNamespace(status="LISTEN", laddr=types.SimpleNamespace(
+            ip="127.0.0.1", port=23456))
+        # psutil 5.9.8 has Process.connections(), without Process.net_connections().
+        self.worker = types.SimpleNamespace(is_running=lambda: True,
+            create_time=lambda: self.watch["worker_created"], exe=lambda: sys.executable,
+            connections=lambda kind: [self.listener])
+        connection = types.SimpleNamespace(
+            request=lambda method, path, body, headers: self.requests.append(json.loads(body)),
+            getresponse=lambda: types.SimpleNamespace(status=200, read=lambda limit: b'{"ok":true}'),
+            close=lambda: None)
+        psutil = types.SimpleNamespace(Process=lambda pid: self.worker, CONN_LISTEN="LISTEN", Error=RuntimeError)
+        for patcher in (mock.patch.object(c.h, "psutil", psutil, create=True),
+                        mock.patch.object(c.h, "input_desktop", return_value="SyntheticInput"),
+                        mock.patch("http.client.HTTPConnection", return_value=connection)):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def test_pinned_psutil_worker_connections_api_can_verify_current_window(self):
+        c._verify_at_observer(self.source, self.record)
+        self.assertEqual(len(self.requests), 1)
+        self.assertEqual(self.requests[0]["hwnd"], self.record["hwnd"])
+
+    def test_modern_psutil_worker_connections_api_can_verify_current_window(self):
+        self.worker.net_connections = self.worker.connections
+        self.worker.connections = lambda kind: (_ for _ in ()).throw(AssertionError("Legacy API used"))
+        c._verify_at_observer(self.source, self.record)
+        self.assertEqual(len(self.requests), 1)
+
+    def test_unowned_listener_or_reused_worker_never_contacts_verifier(self):
+        for field, value in (("connections", lambda kind: []),
+                             ("create_time", lambda: self.watch["worker_created"] + 1)):
+            with self.subTest(field=field), mock.patch.object(self.worker, field, value):
+                with self.assertRaises(c.Unavailable):
+                    c._verify_at_observer(self.source, self.record)
+        self.assertEqual(self.requests, [])
 
 
 class HttpAndMcpTests(Fixture):

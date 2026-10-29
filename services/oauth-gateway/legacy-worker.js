@@ -392,6 +392,9 @@ export default {
     }
 
     if (url.pathname === "/api/auth/register" && req.method === "POST") {
+      if (String(env.PRIVATE_MODE).toLowerCase() === 'true') {
+        return jsonResp(403, { ok: false, error: 'Account registration is disabled during private access. Sign in with an existing approved account.' }, req);
+      }
       if (typeof body.email !== "string") return jsonResp(400, { ok: false, error: "Email must be a string." }, req);
       const email = String(body.email || "").trim().toLowerCase();
       if (!privateAccountAllowed(env, email)) return jsonResp(403, { ok: false, error: 'Private account access is required.' }, req);

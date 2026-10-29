@@ -4,7 +4,7 @@ const document = `<!doctype html>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#07090c">
-  <title>Sign in · Stealth Commander by Nexusmap.ai</title>
+  <title>Sign in · Stealth Commander by nexusmap.ai</title>
   <link rel="icon" type="image/png" href="/icon.png">
   <style>
     :root { color-scheme: dark; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #07090c; color: #f3f6fa; }
@@ -40,7 +40,7 @@ const document = `<!doctype html>
 <body>
   <header>
     <div class="shell header-inner">
-      <a class="brand" href="/" aria-label="Stealth Commander home"><img src="/icon.png" width="40" height="40" alt=""><span>Stealth Commander<small>by Nexusmap.ai</small></span></a>
+      <a class="brand" href="/" aria-label="Stealth Commander home"><img src="/icon.png" width="40" height="40" alt=""><span>Stealth Commander<small>by nexusmap.ai</small></span></a>
       <nav aria-label="Main navigation"><a href="/about">About</a><a href="/support">Support</a></nav>
     </div>
   </header>
@@ -59,7 +59,7 @@ const document = `<!doctype html>
       <p class="help">Account access is currently by approval. Need help signing in? <a href="/support">Visit Support</a>.</p>
     </section>
   </main>
-  <footer>Stealth Commander by Nexusmap.ai</footer>
+  <footer>Stealth Commander by nexusmap.ai</footer>
   <script>
     const form = document.getElementById('signin');
     const result = document.getElementById('result');

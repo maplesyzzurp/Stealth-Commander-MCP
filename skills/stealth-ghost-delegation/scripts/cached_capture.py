@@ -158,7 +158,8 @@ def _verify_at_observer(source, record):
         if (not worker.is_running() or abs(worker.create_time() - created) > .01
                 or _normal(worker.exe()) != _normal(os.path.abspath(__import__("sys").executable))):
             raise Unavailable("The verifier process identity changed.")
-        sockets = worker.net_connections(kind="tcp")
+        connections = getattr(worker, "net_connections", None) or worker.connections
+        sockets = connections(kind="tcp")
         if not any(conn.status == h.psutil.CONN_LISTEN
                    and conn.laddr.ip == "127.0.0.1" and conn.laddr.port == port
                    for conn in sockets):
@@ -203,7 +204,14 @@ def verify_window_binding(config, record, source):
     if ((process.create_time(), _normal(process.exe())) != expected or not process.is_running()):
         raise Unavailable("The captured process identity changed.")
     if config["scope"] == "session":
-        if process.pid != anchor.pid and anchor.pid not in {parent.pid for parent in process.parents()}:
+        native_session = config.get("source")
+        if native_session and (Path(native_session) / "native-session.json").is_file():
+            import desktop_watch
+            current = desktop_watch.source_state(native_session)
+            if (list(desktop_watch.identity(current)) != config["source_identity"]
+                    or not desktop_watch.native_window_owned(current, record)):
+                raise Unavailable("The captured window is outside the native session job.")
+        elif process.pid != anchor.pid and anchor.pid not in {parent.pid for parent in process.parents()}:
             raise Unavailable("The captured window is outside the owned session tree.")
     elif config["scope"] != "desktop":
         raise Unavailable("Unrecognized observation scope.")

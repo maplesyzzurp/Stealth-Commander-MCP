@@ -1,6 +1,6 @@
 # Stealth Commander
 
-Canonical source: [https://github.com/maplesyzzurp/Stealth-Commander-MCP](https://github.com/maplesyzzurp/Stealth-Commander-MCP). This repository owns the complete build and all future releases.
+This repository and its configured `origin/main` are the source of truth for the complete build and future releases. The prior repository is historical; publish updates from this checkout to its configured origin.
 
 Run supported Windows applications on hidden desktops and watch their captured windows in a local Chrome dashboard. The package contains the desktop launchers, PyCharm control bridge, optional REA browser adapter, capture workers, streaming server, dashboard UI, resource metrics, examples, and tests. No AI provider or model API key is required.
 
@@ -8,11 +8,32 @@ This repository is the authoritative source for the skill. An agent starts with 
 
 ## PC installer
 
-The npm package and command are named `stealth-commander`. 64-bit Python 3.11 or newer must already be installed.
+Current builds are distributed privately. Obtain the reviewed source archive or an approved npm `.tgz` from the operator. There is no public npm registry release or public download supplied by this repository. Remote account access is limited to approved accounts.
 
-`stealth-commander setup` installs the skill, installs its Python dependencies, updates supported local AI client configurations, and starts local services. It does not create a new remote tunnel.
+Use Windows x64, Node.js 18 or newer with npm, and 64-bit Python 3.11 or newer. The launcher finds a supported Python on PATH or uses `PYCHARM_HARNESS_PYTHON`. Installation downloads the hash-locked Python dependencies from PyPI. PyCharm and Chrome are separate prerequisites for their respective workflows; the optional REA adapter has the newer Node.js requirements listed below.
 
-To link an account and enable remote access, run `stealth-commander setup --enable-remote` in an interactive terminal. An unpaired PC prompts for the account key without echoing it. This starts a token-protected HTTPS tunnel. Anyone with a valid connection can use the exposed tools, including command execution with the Windows account's file and network permissions. Keep connection URLs and account keys private. The `tunnel` command and the portal's "Enable Temp Tunnel" control also explicitly enable remote access.
+For an approved source archive, extract it and open PowerShell in the directory containing `package.json`:
+
+~~~powershell
+node ./bin/stealth-commander.js install
+node ./bin/stealth-commander.js doctor
+~~~
+
+For an approved package archive, open PowerShell in the directory containing that file:
+
+~~~powershell
+npm install --global ./stealth-commander-1.1.3-private.5.tgz
+stealth-commander install
+stealth-commander doctor
+~~~
+
+Use the supplied archive's actual filename if it differs. The `install` command installs the complete skill and Python dependencies and updates supported existing local AI client configurations. It starts no services and needs no account. Read the individual readiness results from `doctor`; success does not mean every optional application is installed. Local CLI use from extracted source requires no global npm installation.
+
+After a source build passes release checks, the operator can produce that npm archive with `npm pack --ignore-scripts` from the repository root. GitHub Actions validates a package dry-run; it does not distribute a downloadable build.
+
+The remaining commands use the globally installed `stealth-commander` command. From extracted source, replace it with `node ./bin/stealth-commander.js` while staying in that source directory. `setup` requires existing pairing or an approved account key, updates the installation, and starts local services. It does not create a new remote tunnel.
+
+To link an account and enable remote access, run `stealth-commander setup --enable-remote` in an interactive terminal. An unpaired PC prompts for the account key without echoing it. Remote requests require current account authorization, paired-PC selection, and a verified single-use request ticket. Commands use the Windows account's file and network permissions. Keep connection URLs and account keys private. The `tunnel` command and the portal's "Enable Temp Tunnel" control also explicitly enable remote access.
 
 The local setup command does not stop an existing tunnel. Use "Lock Local-Only (Stop Tunnel)" in the portal to stop a tunnel. Setup does not change Chrome security policies.
 
@@ -89,7 +110,7 @@ Runtime files and development investigation notes are excluded. Tests and exampl
 
 A hidden desktop separates GUI input, but its processes retain the Windows account's file and network access. It is not a security sandbox. The harness uses targeted application control and must not fall back to the physical mouse, global keystrokes, or desktop switching.
 
-Launching another application does not create a control adapter for it. PyCharm internals, accessibility support, browser behavior, and capture compatibility vary by version. Run the relevant checks on the destination machine. No package can guarantee correct assignment solutions or universal application support.
+Launching another application does not create a control adapter for it. PyCharm internals, accessibility support, browser behavior, and capture compatibility vary by version. Run the relevant checks on the destination machine.
 
 Stop only sessions owned by the task. Preserve another session's apps and unsaved work. Inspect the returned shutdown result; a requested stop is not proof that every process exited.
 
@@ -111,7 +132,7 @@ pwsh -NoProfile -File tools/install-codex-plugin.ps1 -WhatIf
 pwsh -NoProfile -File tools/install-codex-plugin.ps1
 ~~~
 
-The helper updates only the existing Stealth Commander marketplace entry, preserves a backup and unrelated plugins, runs Codex's supported install command, and verifies the installed version and approved ninja image. It requires the checkout to be contained within the existing marketplace root.
+The helper updates only the existing Stealth Commander marketplace entry, preserves a backup and unrelated plugins, runs Codex's supported install command, and verifies the complete installed package against the authored skill inventory, install manifest, and approved ninja image. It requires the checkout to be contained within the existing marketplace root. It refreshes an existing local plugin; it is not a first-time marketplace registration command.
 
 Already-running MCP processes may retain their old tool declarations. Verify a fresh connection's server version and tools/list; a file update alone does not prove an active process reloaded. Existing application sessions and account pairing are not a reason to kill unrelated processes.
 

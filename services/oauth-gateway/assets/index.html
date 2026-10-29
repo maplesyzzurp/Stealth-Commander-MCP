@@ -90,7 +90,7 @@ th{color:#8b9bb4;font-size:11px;text-transform:uppercase}
   </div>
   <div class="grid">
     <div class="panel">
-      <h3><span>1-Click IDE Auto-Install</span></h3>
+      <h3><span>Configure an IDE connection</span></h3>
       <p style="margin:0;font-size:12px;color:#8b9bb4">Click to auto-register Stealth Commander in Cursor or VS Code, or copy the Remote MCP URL for ChatGPT, Claude Web, and mobile agents.</p>
       <div class="row">
         <a class="btn" id="cursorLink" href="#">Open in Cursor</a>
@@ -102,7 +102,7 @@ th{color:#8b9bb4;font-size:11px;text-transform:uppercase}
       <p>Connect with OAuth, sign in to your Stealth Commander account, and choose one paired PC.</p>
     </div>
     <div class="panel">
-      <h3><span>Universal MCP JSON (Claude Desktop / Cursor / Windsurf / Droid)</span><button class="sec" onclick="copyText(document.getElementById('jsonSnippet').textContent,'Copied JSON config!')">Copy JSON</button></h3>
+      <h3><span>MCP configuration (Claude Desktop / Cursor / Windsurf / Droid)</span><button class="sec" onclick="copyText(document.getElementById('jsonSnippet').textContent,'Copied JSON config!')">Copy JSON</button></h3>
       <pre id="jsonSnippet">{
   "mcpServers": {
     "stealth-commander": {
@@ -145,7 +145,7 @@ th{color:#8b9bb4;font-size:11px;text-transform:uppercase}
   <div class="kpis">
     <div class="kpi"><div class="lbl">Total MCP / Hub Calls</div><div class="val" id="u-calls">0</div></div>
     <div class="kpi"><div class="lbl">Exposed MCP Tools</div><div class="val" id="u-tools">10</div></div>
-    <div class="kpi"><div class="lbl">Capture Engine</div><div class="val">D3D11 · 60 FPS</div></div>
+    <div class="kpi"><div class="lbl">Capture Engine</div><div class="val">D3D11 window capture</div></div>
     <div class="kpi"><div class="lbl">JPEG Subsampling</div><div class="val">4:4:4 Crisp</div></div>
   </div>
   <div class="panel" style="margin-bottom:10px">
@@ -161,10 +161,10 @@ th{color:#8b9bb4;font-size:11px;text-transform:uppercase}
   <div class="grid">
     <div class="panel">
       <h3>Stream & Hub Settings</h3>
-      <div class="row"><label style="width:180px;font-size:12px">Target Frame Rate</label><select id="setFps"><option value="60">60 FPS (Direct3D 11 GPU)</option><option value="30">30 FPS (Balanced)</option></select></div>
+      <div class="row"><label style="width:180px;font-size:12px">Target Frame Rate</label><select id="setFps"><option value="60">60 FPS target (Direct3D 11)</option><option value="30">30 FPS (Balanced)</option></select></div>
       <div class="row"><label style="width:180px;font-size:12px">Auto-Start Dashboard</label><select id="setAutoDash"><option value="true">Enabled (On any MCP call)</option><option value="false">Manual only</option></select></div>
       <div class="row"><label style="width:180px;font-size:12px">Cloudflare Pages Proxy</label><select id="setPages" disabled><option value="false">Private testing — publishing disabled</option></select></div>
-      <div class="row" style="margin-top:6px"><button onclick="saveSettings()">Save Settings</button><button class="sec" onclick="act('restart_dashboard')">Restart 60 FPS Dashboard</button><button class="sec" onclick="act('reconnect_tunnel')">Reconnect Cloudflare Tunnel</button></div>
+      <div class="row" style="margin-top:6px"><button onclick="saveSettings()">Save Settings</button><button class="sec" onclick="act('restart_dashboard')">Restart Dashboard</button><button class="sec" onclick="act('reconnect_tunnel')">Reconnect Cloudflare Tunnel</button></div>
     </div>
     <div class="panel">
       <h3>System Diagnostics & Endpoints</h3>

@@ -38,6 +38,9 @@ jobs:
           -r skills/stealth-ghost-delegation/scripts/requirements.txt
       - name: Launcher tests
         run: npm test
+      - name: Codex plugin payload verification and marketplace rollback
+        shell: pwsh
+        run: ./tests/test_install_codex_plugin.ps1 -FixtureParent "${{ github.workspace }}/verification-local"
       - name: Python unit and synthetic transport tests
         run: npm run test:python
       - name: Stdio tool and release contracts

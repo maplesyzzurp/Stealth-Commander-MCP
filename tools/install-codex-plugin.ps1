@@ -38,6 +38,44 @@ function Get-Sha256 {
     finally { $hasher.Dispose() }
 }
 
+function Get-PayloadFile {
+    param([string]$Root, [string]$RelativePath)
+    if ([string]::IsNullOrWhiteSpace($RelativePath) -or [IO.Path]::IsPathRooted($RelativePath) -or
+        $RelativePath -match '[:\\]' -or @($RelativePath.Split('/') | Where-Object { $_ -in @('', '.', '..') }).Count) {
+        throw "Invalid release payload path: $RelativePath."
+    }
+    $file = $Root
+    foreach ($part in $RelativePath.Split('/')) {
+        $file = Join-Path $file $part
+        $item = Get-Item -LiteralPath $file -Force -ErrorAction Stop
+        if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+            throw "Release payload paths must not traverse links: $RelativePath."
+        }
+    }
+    if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw "Missing release payload file: $RelativePath." }
+    return $file
+}
+
+function Get-AuthoredSkillFiles {
+    param([string]$Directory, [string]$Prefix = '')
+    foreach ($item in Get-ChildItem -LiteralPath $Directory -Force) {
+        if ($item.Name -in @('.runtime', '__pycache__', 'node_modules', '.venv') -or $item.Name -match '\.py[co]$') { continue }
+        $relative = $Prefix + $item.Name
+        if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+            throw "Authored skill paths must not traverse links: $relative."
+        }
+        if ($item.PSIsContainer) { Get-AuthoredSkillFiles -Directory $item.FullName -Prefix ($relative + '/') }
+        else { $relative }
+    }
+}
+
+function Assert-SameFiles {
+    param([string[]]$Expected, [string[]]$Actual, [string]$Description)
+    if (@(Compare-Object -ReferenceObject @($Expected | Sort-Object -CaseSensitive) -DifferenceObject @($Actual | Sort-Object -CaseSensitive) -CaseSensitive).Count) {
+        throw "$Description does not match the complete authored skill payload."
+    }
+}
+
 $sourceRoot = (Resolve-Path -LiteralPath $PluginRoot).ProviderPath.TrimEnd([IO.Path]::DirectorySeparatorChar)
 $marketplacePath = (Resolve-Path -LiteralPath $MarketplaceFile).ProviderPath
 $manifest = Get-Content -LiteralPath (Join-Path $sourceRoot 'plugin.json') -Raw | ConvertFrom-Json -Depth 100
@@ -45,13 +83,13 @@ $compat = Get-Content -LiteralPath (Join-Path $sourceRoot '.codex-plugin/plugin.
 if ($manifest.name -ne 'stealth-commander' -or $compat.name -ne $manifest.name -or $compat.version -ne $manifest.version) {
     throw 'The source plugin identity/version is not consistent.'
 }
-if ($manifest.author.name -ne 'Nexusmap.ai' -or $compat.author.name -ne 'Nexusmap.ai') {
-    throw 'The source publisher must be Nexusmap.ai.'
+if ($manifest.author.name -cne 'nexusmap.ai' -or $compat.author.name -cne 'nexusmap.ai') {
+    throw 'The source publisher must be nexusmap.ai.'
 }
 $interface = $manifest.extensions.'com.openai'.interface
 foreach ($presentation in @($interface, $compat.interface)) {
-    if ($presentation.developerName -ne 'Nexusmap.ai' -or $presentation.logo -ne './assets/ninja-mask.png' -or $presentation.composerIcon -ne './assets/ninja-mask.png') {
-        throw 'The source presentation must reference the supplied ninja image and Nexusmap.ai.'
+    if ($presentation.developerName -cne 'nexusmap.ai' -or $presentation.logo -ne './assets/ninja-mask.png' -or $presentation.composerIcon -ne './assets/ninja-mask.png') {
+        throw 'The source presentation must reference the supplied ninja image and nexusmap.ai.'
     }
 }
 $iconPath = Join-Path $sourceRoot 'assets/ninja-mask.png'
@@ -60,6 +98,32 @@ if ((Get-FileHash -LiteralPath $iconPath -Algorithm SHA256).Hash.ToLowerInvarian
 }
 if ($sourceRoot -match '(?i)[\\/]\.codex[\\/]plugins[\\/]cache([\\/]|$)') {
     throw 'Use the reviewed source checkout, not a generated plugin cache.'
+}
+
+$package = Get-Content -LiteralPath (Join-Path $sourceRoot 'package.json') -Raw | ConvertFrom-Json -Depth 100
+if ($package.name -ne $manifest.name -or $package.version -ne $manifest.version -or -not $package.files.Count) {
+    throw 'The source package identity/version or payload is not consistent.'
+}
+$skillPrefix = 'skills/stealth-ghost-delegation/'
+$skillManifestPath = $skillPrefix + 'install-manifest.json'
+$skillRoot = Join-Path $sourceRoot 'skills/stealth-ghost-delegation'
+$skillManifest = Get-Content -LiteralPath (Get-PayloadFile -Root $sourceRoot -RelativePath $skillManifestPath) -Raw | ConvertFrom-Json -AsHashtable -Depth 100
+if (-not ($skillManifest -is [Collections.IDictionary]) -or -not $skillManifest.Count) { throw 'The source install manifest is empty or invalid.' }
+$authoredSkillFiles = @(Get-AuthoredSkillFiles -Directory $skillRoot | Where-Object { $_ -cne 'install-manifest.json' })
+Assert-SameFiles -Expected @($skillManifest.Keys) -Actual $authoredSkillFiles -Description 'Source install manifest'
+$payloadFiles = @('package.json') + @($package.files)
+$declaredSkillFiles = @($payloadFiles | Where-Object { $_.StartsWith($skillPrefix, [StringComparison]::Ordinal) } | ForEach-Object { $_.Substring($skillPrefix.Length) })
+Assert-SameFiles -Expected @($authoredSkillFiles + 'install-manifest.json') -Actual $declaredSkillFiles -Description 'Source package file list'
+$payloadHashes = [ordered]@{}
+foreach ($relativeFile in $payloadFiles) {
+    $sourceFile = Get-PayloadFile -Root $sourceRoot -RelativePath $relativeFile
+    $payloadHashes[$relativeFile] = (Get-FileHash -LiteralPath $sourceFile -Algorithm SHA256).Hash.ToLowerInvariant()
+}
+foreach ($relativeFile in $skillManifest.Keys) {
+    $digest = $skillManifest[$relativeFile]
+    if ($digest -isnot [string] -or $digest -cnotmatch '^[0-9a-f]{64}$' -or $payloadHashes[$skillPrefix + $relativeFile] -cne $digest) {
+        throw "Source install manifest verification failed for $relativeFile."
+    }
 }
 
 $marketplaces = Invoke-CodexJson -Arguments @('plugin', 'marketplace', 'list', '--json')
@@ -120,17 +184,19 @@ try {
         throw 'Codex did not report the expected installed and enabled version.'
     }
     $cacheRoot = Join-Path $CodexConfigRoot ('plugins/cache/plugins-cli/stealth-commander/' + $manifest.version)
-    foreach ($relativeFile in @('plugin.json', '.codex-plugin/plugin.json', 'mcp.json', '.mcp.json', 'assets/ninja-mask.png')) {
-        $sourceFile = Join-Path $sourceRoot $relativeFile
-        $cachedFile = Join-Path $cacheRoot $relativeFile
-        if (-not (Test-Path -LiteralPath $cachedFile -PathType Leaf) -or
-            (Get-FileHash -LiteralPath $sourceFile -Algorithm SHA256).Hash -ne (Get-FileHash -LiteralPath $cachedFile -Algorithm SHA256).Hash) {
+    foreach ($relativeFile in $payloadHashes.Keys) {
+        try { $cachedFile = Get-PayloadFile -Root $cacheRoot -RelativePath $relativeFile }
+        catch { throw "Installed cache verification failed for ${relativeFile}: $($_.Exception.Message)" }
+        if ($payloadHashes[$relativeFile] -cne (Get-FileHash -LiteralPath $cachedFile -Algorithm SHA256).Hash.ToLowerInvariant()) {
             throw "Installed cache verification failed for $relativeFile."
         }
     }
+    $cachedSkillFiles = @(Get-AuthoredSkillFiles -Directory (Join-Path $cacheRoot 'skills/stealth-ghost-delegation'))
+    Assert-SameFiles -Expected @($authoredSkillFiles + 'install-manifest.json') -Actual $cachedSkillFiles -Description 'Installed cache'
     $plan['changed'] = $true
     $plan['backup'] = $backupPath
     $plan['verified_cache'] = $cacheRoot
+    $plan['verified_payload_files'] = $payloadHashes.Count
     $plan['runtime_restart_verified'] = $false
     $plan | ConvertTo-Json -Depth 10
 }

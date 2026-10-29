@@ -25,7 +25,7 @@ SCRIPTS_DIR = Path(__file__).resolve().parent
 DEFAULT_DASHBOARD_PORT = 61076
 DEFAULT_HUB_PORT = 61077
 PAGES_ORIGIN = "https://stealthcommander.pages.dev"
-SERVER_INFO = {"name": "Stealth Commander", "version": "1.1.3-private.4"}
+SERVER_INFO = {"name": "Stealth Commander", "version": "1.1.3-private.5"}
 
 TOOLS = [
     {
@@ -748,7 +748,7 @@ th{color:#8b9bb4;font-size:11px;text-transform:uppercase}
 <section id="view-devices" class="view active">
   <div class="kpis">
     <div class="kpi"><div class="lbl">Host Device</div><div class="val" id="k-host">—</div></div>
-    <div class="kpi"><div class="lbl">Security Mode</div><div class="val" id="k-tun">Local Only (Safe)</div></div>
+    <div class="kpi"><div class="lbl">Security Mode</div><div class="val" id="k-tun">Local Only</div></div>
     <div class="kpi"><div class="lbl">Active Hidden Desktops</div><div class="val" id="k-desk">0</div></div>
     <div class="kpi"><div class="lbl">Connected Local AI Clients</div><div class="val" id="k-cli">0 / 7</div></div>
   </div>
@@ -760,8 +760,16 @@ th{color:#8b9bb4;font-size:11px;text-transform:uppercase}
     </table>
   </div>
   <div class="panel">
-    <h3><span>Install on a Windows PC</span><button class="sec" onclick="copyText('npx -y --registry=https://stealthcommander.pages.dev stealth-commander@1.1.3-private.4 setup','Copied NPX setup command!')">Copy NPX Command</button></h3>
-    <code class="blk">npx -y --registry=https://stealthcommander.pages.dev stealth-commander@1.1.3-private.4 setup</code>
+    <h3><span>Install an approved private build</span><button class="sec" onclick="copyText(document.getElementById('privateInstallCmd').textContent,'Copied private package install commands!')">Copy Package Commands</button></h3>
+    <p>Builds and remote accounts are currently private. Obtain reviewed source or an approved .tgz from the operator; there is no public package registry or download here. Use Windows x64, Node.js 18+ with npm, and 64-bit Python 3.11+. PyCharm and Chrome are separate prerequisites for their workflows.</p>
+    <p>In PowerShell, from the folder containing the approved package, use its actual filename:</p>
+    <pre id="privateInstallCmd">npm install --global ./stealth-commander-1.1.3-private.5.tgz
+stealth-commander install
+stealth-commander doctor</pre>
+    <p>Alternatively, extract the approved source archive and run these commands from its directory containing package.json:</p>
+    <pre>node ./bin/stealth-commander.js install
+node ./bin/stealth-commander.js doctor</pre>
+    <p>Installation downloads pinned Python dependencies from PyPI, updates supported existing local client configurations, and starts no services. It needs no account. Read doctor's individual readiness results. The commands below use the globally installed package; from extracted source, replace stealth-commander with node ./bin/stealth-commander.js.</p>
   </div>
 </section>
 
@@ -775,8 +783,8 @@ th{color:#8b9bb4;font-size:11px;text-transform:uppercase}
   </div>
   <div class="grid">
     <div class="panel">
-      <h3><span>1-Click IDE Auto-Install</span></h3>
-      <p style="margin:0;font-size:12px;color:#8b9bb4">Click to auto-register Stealth Commander in Cursor or VS Code, or copy the Remote MCP URL for ChatGPT, Claude Web, and mobile agents.</p>
+      <h3><span>Local client configuration</span></h3>
+      <p style="margin:0;font-size:12px;color:#8b9bb4">After installing the approved .tgz globally, open a configuration link for Cursor or VS Code. The source installer updates supported existing local client configurations directly. Remote account access requires an approved account and a paired PC.</p>
       <div class="row">
         <a class="btn" id="cursorLink" href="#">Open in Cursor</a>
         <a class="btn sec" id="vscodeLink" href="#">Open in VS Code</a>
@@ -786,17 +794,18 @@ th{color:#8b9bb4;font-size:11px;text-transform:uppercase}
       <code class="blk" id="mcpUrlCode"></code>
     </div>
     <div class="panel">
-      <h3><span>Universal MCP JSON (Claude Desktop / Cursor / Windsurf / Droid)</span><button class="sec" onclick="copyText(document.getElementById('jsonSnippet').textContent,'Copied JSON config!')">Copy JSON</button></h3>
+      <h3><span>Local stdio MCP JSON (installed private package)</span><button class="sec" onclick="copyText(document.getElementById('jsonSnippet').textContent,'Copied JSON config!')">Copy JSON</button></h3>
       <pre id="jsonSnippet">{
   "mcpServers": {
     "stealth-commander": {
-      "command": "npx",
-      "args": ["-y", "--registry=https://stealthcommander.pages.dev", "stealth-commander@1.1.3-private.4", "serve"]
+      "command": "cmd",
+      "args": ["/d", "/c", "stealth-commander", "serve"]
     }
   }
 }</pre>
-      <h3><span>ChatGPT / Codex CLI & Claude Code CLI</span><button class="sec" onclick="copyText('claude mcp add stealth-commander -- npx -y --registry=https://stealthcommander.pages.dev stealth-commander@1.1.3-private.4 serve','Copied Claude CLI command!')">Copy CLI</button></h3>
-      <code class="blk">claude mcp add stealth-commander -- npx -y --registry=https://stealthcommander.pages.dev stealth-commander@1.1.3-private.4 serve</code>
+      <p>These Windows examples use cmd to run npm's installed command shim. The source installer writes configurations with the exact Python executable instead.</p>
+      <h3><span>Claude Code CLI (installed private package)</span><button class="sec" onclick="copyText('claude mcp add stealth-commander -- cmd /d /c stealth-commander serve','Copied Claude CLI command!')">Copy CLI</button></h3>
+      <code class="blk">claude mcp add stealth-commander -- cmd /d /c stealth-commander serve</code>
     </div>
   </div>
 </section>
@@ -832,7 +841,7 @@ th{color:#8b9bb4;font-size:11px;text-transform:uppercase}
   <div class="kpis">
     <div class="kpi"><div class="lbl">Total MCP / Hub Calls</div><div class="val" id="u-calls">0</div></div>
     <div class="kpi"><div class="lbl">Exposed MCP Tools</div><div class="val" id="u-tools">10</div></div>
-    <div class="kpi"><div class="lbl">Capture Engine</div><div class="val">D3D11 · 60 FPS</div></div>
+    <div class="kpi"><div class="lbl">Capture Engine</div><div class="val">D3D11 / PrintWindow</div></div>
     <div class="kpi"><div class="lbl">JPEG Subsampling</div><div class="val">4:4:4 Crisp</div></div>
   </div>
   <div class="panel" style="margin-bottom:10px">
@@ -864,7 +873,7 @@ th{color:#8b9bb4;font-size:11px;text-transform:uppercase}
   <div id="acctSignedOutPanel" class="grid">
     <div class="panel">
       <h3><span>Sign In or Create Your Stealth Commander Account</span></h3>
-      <p style="margin:0;font-size:12px;color:#9fb0c7">Sign in to link your Windows PCs and VDI boxes to your personal account. Your devices auto-discover over HTTPS without manual tunnel URLs and remain strictly private to your login.</p>
+      <p style="margin:0;font-size:12px;color:#9fb0c7">Sign in with an approved account to link your Windows PCs. Account creation during private testing requires operator approval. Select a paired PC for remote access.</p>
       <div class="row" style="margin-top:4px">
         <button id="modeSignInBtn" onclick="setAuthMode('login')">Sign In</button>
         <button class="sec" id="modeRegBtn" onclick="setAuthMode('register')">Create Account</button>
@@ -884,11 +893,11 @@ th{color:#8b9bb4;font-size:11px;text-transform:uppercase}
       </div>
     </div>
     <div class="panel">
-      <h3><span>CLI Account Login & Setup</span><button class="sec" onclick="copyText('npx -y --registry=https://stealthcommander.pages.dev stealth-commander@1.1.3-private.4 login','Copied CLI login command!')">Copy CLI Login</button></h3>
+      <h3><span>CLI Account Login & Setup</span><button class="sec" onclick="copyText('stealth-commander login','Copied CLI login command!')">Copy CLI Login</button></h3>
       <p style="margin:0;font-size:12px;color:#8b9bb4">Run this command in PowerShell and enter the account key at the hidden prompt:</p>
-      <code class="blk">npx -y --registry=https://stealthcommander.pages.dev stealth-commander@1.1.3-private.4 login</code>
+      <code class="blk">stealth-commander login</code>
       <h3><span>Check Signed-In Account in CLI</span></h3>
-      <code class="blk">npx -y --registry=https://stealthcommander.pages.dev stealth-commander@1.1.3-private.4 whoami</code>
+      <code class="blk">stealth-commander whoami</code>
     </div>
   </div>
 
@@ -905,7 +914,7 @@ th{color:#8b9bb4;font-size:11px;text-transform:uppercase}
         <code class="blk" id="acctKeyCode">—</code>
         <h3 style="margin-top:6px"><span>Link this PC and enable remote access</span><button class="sec" onclick="copyText(document.getElementById('acctSetupCmd').textContent,'Copied Account Setup Command!')">Copy Setup Command</button></h3>
         <p>Running this command links the PC to your account and enables a token-protected HTTPS tunnel. Remote tools can run commands and control owned desktop sessions.</p>
-        <code class="blk" id="acctSetupCmd">npx -y --registry=https://stealthcommander.pages.dev stealth-commander@1.1.3-private.4 setup --enable-remote</code>
+        <code class="blk" id="acctSetupCmd">stealth-commander setup --enable-remote</code>
       </div>
       <div class="panel">
         <h3><span>Account-Linked Windows PCs & VDI Nodes</span><button class="sec" onclick="loadAccountMe(true)">Refresh Devices</button></h3>
@@ -942,9 +951,9 @@ th{color:#8b9bb4;font-size:11px;text-transform:uppercase}
 </div>
 
 <div id="setupBanner" class="panel" style="display:none;margin-bottom:10px;border-color:#388bfd;background:#0d1829">
-  <h3><span>Set Up Stealth Commander on Your PC (or Sign In to Your Account)</span><div class="row"><button onclick="openAuthModal()">Sign In / Create Account</button><button class="sec" onclick="copyText(document.getElementById('bannerSetupCmd').textContent,'Copied NPX setup command!')">Copy Setup Command</button></div></h3>
-  <p style="margin:0;font-size:12px;color:#9fb0c7">Sign in to your Stealth Commander account to auto-connect your linked Windows PCs, or run the command below in PowerShell on your Windows PC:</p>
-  <code class="blk" id="bannerSetupCmd">npx -y --registry=https://stealthcommander.pages.dev stealth-commander@1.1.3-private.4 setup</code>
+  <h3><span>Set up an approved Windows client</span><div class="row"><button onclick="openAuthModal()">Sign In / Create Account</button><button class="sec" onclick="copyText(document.getElementById('bannerSetupCmd').textContent,'Copied setup command!')">Copy Setup Command</button></div></h3>
+  <p style="margin:0;font-size:12px;color:#9fb0c7">Install the approved source or .tgz using the Devices tab instructions first. Pairing and remote access require an approved account key. Run this command in PowerShell; it prompts for the key without echoing it:</p>
+  <code class="blk" id="bannerSetupCmd">stealth-commander setup --enable-remote</code>
   <div class="row">
     <input id="remotePairIn" placeholder="Or paste your personal #remote tunnel URL (https://....trycloudflare.com/<token>)">
     <button class="sec" onclick="pairRemote()">Connect Personal Tunnel</button>
@@ -1038,7 +1047,7 @@ function renderAccountState(user){
   document.getElementById('acctEmailVal').textContent=user.email||'—';
   document.getElementById('acctNameVal').textContent=user.name||user.email.split('@')[0];
   document.getElementById('acctKeyCode').textContent=user.api_key||'—';
-  const setupCmd='npx -y --registry=https://stealthcommander.pages.dev stealth-commander@1.1.3-private.4 setup --enable-remote';
+  const setupCmd='stealth-commander setup --enable-remote';
   document.getElementById('acctSetupCmd').textContent=setupCmd;
   const bCmd=document.getElementById('bannerSetupCmd');
   if(bCmd)bCmd.textContent=setupCmd;
@@ -1188,12 +1197,12 @@ async function initApiBase(){
   const mcpEndpoint=(apiBase||(location.origin+rawPath))+'/mcp';
   document.getElementById('mcpUrlCode').textContent=mcpEndpoint;
 }
-const cursorCfg=btoa(JSON.stringify({command:"npx",args:["-y","--registry=https://stealthcommander.pages.dev","stealth-commander@1.1.3-private.4","serve"]}));
+const cursorCfg=btoa(JSON.stringify({command:"cmd",args:["/d","/c","stealth-commander","serve"]}));
 document.getElementById('cursorLink').href='cursor://anysphere.cursor-deeplink/mcp/install?name=stealth-commander&config='+encodeURIComponent(cursorCfg);
-document.getElementById('vscodeLink').href='vscode:mcp/install?'+encodeURIComponent(JSON.stringify({name:'stealth-commander',command:'npx',args:['-y','--registry=https://stealthcommander.pages.dev','stealth-commander@1.1.3-private.4','serve']}));
+document.getElementById('vscodeLink').href='vscode:mcp/install?'+encodeURIComponent(JSON.stringify({name:'stealth-commander',command:'cmd',args:['/d','/c','stealth-commander','serve']}));
 
 async function act(kind,extra={}){
-  if(!apiBase){toast('Run npx setup on your PC first');return;}
+  if(!apiBase){toast('Install the approved build and complete setup on your PC first');return;}
   toast('Running '+kind+'...');
   const body={kind,target:document.getElementById('appPath')?.value.trim()||'',cmd:document.getElementById('cmdIn')?.value.trim()||'',browser:document.getElementById('browserPath')?.value.trim()||'',rea_cli:document.getElementById('reaCliPath')?.value.trim()||'',...extra};
   try{
@@ -1251,8 +1260,8 @@ async function poll(){
     document.getElementById('host').textContent='Stealth Commander · '+(dev.hostname||'PC');
     document.getElementById('k-host').textContent=dev.hostname||'PC';
     const tunOk=Boolean(dev.tunnel_online);
-    document.getElementById('k-tun').textContent=tunOk?'Public Tunnel Open':'Local Only (Safe)';
-    document.getElementById('tstatus').textContent=tunOk?'TUNNEL OPEN (HTTPS)':'LOCAL ONLY (SAFE)';
+    document.getElementById('k-tun').textContent=tunOk?'Public Tunnel Open':'Local Only';
+    document.getElementById('tstatus').textContent=tunOk?'TUNNEL OPEN (HTTPS)':'LOCAL ONLY';
     document.getElementById('tstatus').className=tunOk?'pill warn':'pill ok';
     document.getElementById('hdot').className='dot';
     const killBtn=document.getElementById('killTunBtn');
@@ -1386,7 +1395,7 @@ def _public_account(acct):
 
 
 def _pairing_required():
-    return {"ok": False, "pairing_required": True, "error": "Pairing is required. Run stealth-commander@1.1.3-private.4 login in an interactive terminal to enter the account key privately, then repeat this command."}
+    return {"ok": False, "pairing_required": True, "error": "Pairing is required. Run stealth-commander login (or node ./bin/stealth-commander.js login from the approved source directory) in an interactive terminal to enter the account key privately, then repeat this command."}
 
 
 def _public_device(device, device_id):
@@ -2605,7 +2614,7 @@ def main():
         if cmd == "doctor":
             return _print_cli_result(handle_tool_call("doctor", {}))
         if cmd in ("-h", "--help", "help"):
-            print("Usage: npx stealth-commander@1.1.3-private.4 [install [--skip-dependencies]|setup [--enable-remote]|login|register|whoami|logout|start|tunnel|doctor|serve]\nlogin and unpaired setup prompt for the account key in an interactive terminal without echoing it.\nsetup starts local services. --enable-remote also creates a token-protected HTTPS tunnel.\nThe tunnel command explicitly enables remote access. Remote tools can execute commands with your Windows account permissions.")
+            print("Usage: stealth-commander [install [--skip-dependencies]|setup [--enable-remote]|login|register|whoami|logout|start|tunnel|doctor|serve]\nFrom extracted approved source, replace stealth-commander with node ./bin/stealth-commander.js.\nCurrent builds and remote account access are private; obtain the approved source or .tgz from the operator.\ninstall updates local skills and client configurations without starting services or requiring an account.\nlogin and unpaired setup prompt for the approved account key in an interactive terminal without echoing it.\nsetup starts local services. --enable-remote also creates a token-protected HTTPS tunnel.\nThe tunnel command explicitly enables remote access. Remote tools can execute commands with your Windows account permissions.")
             return
     for raw in sys.stdin:
         line = raw.strip()

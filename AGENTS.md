@@ -22,4 +22,4 @@ Prefer Chrome. The hidden browser adapter uses a separate profile; explain that 
 
 ## Canonical repository
 
-The complete build is maintained at https://github.com/maplesyzzurp/Stealth-Commander-MCP. Use this repository for all future changes and pushes. The prior stealth-hidden-desktop-dash repository is historical; do not publish new builds there. Preserve the existing Stealth Commander account-plugin identity when releasing updates.
+This repository and its configured `origin/main` are the source of truth for the complete build. Use this checkout and its configured origin for future changes and pushes. The prior repository is historical; do not publish new builds there. Preserve the existing Stealth Commander account-plugin identity when releasing updates.
