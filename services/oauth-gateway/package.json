@@ -12,7 +12,6 @@
     "@cloudflare/workers-oauth-provider": "1.2.4"
   },
   "devDependencies": {
-    "@xyflow/react": "12.12.0",
     "esbuild": "0.28.2",
     "miniflare": "4.20260730.0",
     "react": "19.3.1",

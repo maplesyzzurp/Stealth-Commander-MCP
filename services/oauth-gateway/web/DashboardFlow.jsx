@@ -1,75 +1,71 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Background, BackgroundVariant, Handle, MarkerType, Position, ReactFlow, ReactFlowProvider, useKeyPress, useNodesState, useReactFlow } from '@xyflow/react';
-import '@xyflow/react/dist/style.css';
 import './dashboard-flow.css';
 
-const stages = [
-  { id: 'account', number: '01', label: 'ACCOUNT', title: 'Your account', detail: 'Identity and paired machines', position: { x: 20, y: 118 } },
-  { id: 'pc', number: '02', label: 'WINDOWS CLIENT', title: 'Your Windows PC', detail: 'One selected device', position: { x: 306, y: 118 } },
-  { id: 'tools', number: '03', label: 'MCP CONNECTION', title: 'Your AI tools', detail: 'Local clients and remote OAuth', position: { x: 592, y: 14 } },
-  { id: 'sessions', number: '04', label: 'HIDDEN WORKSPACE', title: 'Your desktops', detail: 'Owned sessions and observations', position: { x: 592, y: 232 } },
-];
-const edges = [ ['account', 'pc'], ['pc', 'tools'], ['pc', 'sessions'] ].map(([source, target]) => ({ id: `${source}-${target}`, source, target, type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed, width: 15, height: 15 } }));
 const emptyState = { signedIn: false, pairedCount: 0, selectedDevice: false, checked: false, liveCount: null, connectedClients: null, totalClients: null };
 function snapshot() { return { ...emptyState, ...window.dashboardSnapshot?.() }; }
 function openTab(name) { window.showTab?.(name, document.querySelector(`.tab[data-tab="${name}"]`)); }
-function tag(id, state) {
-  if (id === 'account') return state.signedIn ? `${state.pairedCount} paired ${state.pairedCount === 1 ? 'PC' : 'PCs'}` : 'Sign in required';
-  if (id === 'pc') return !state.selectedDevice ? 'No PC selected' : state.checked ? 'Device responding' : 'Connection not confirmed';
-  if (id === 'tools') return state.checked ? `${state.connectedClients} / ${state.totalClients} local clients` : 'Not checked';
-  return state.checked ? `${state.liveCount} live ${state.liveCount === 1 ? 'desktop' : 'desktops'}` : 'Not checked';
-}
-function NetworkNode({ data, selected }) {
-  return <div className={`network-node${selected ? ' is-selected' : ''}`}>
-    {data.id !== 'account' && <Handle type="target" position={Position.Left} isConnectable={false} />}
-    <strong>{data.title}</strong><p>{data.detail}</p>
-    <div className="network-node-footer"><span>{data.status}</span></div>
-    {['account', 'pc'].includes(data.id) && <Handle type="source" position={Position.Right} isConnectable={false} />}
-  </div>;
-}
-const nodeTypes = { network: NetworkNode };
-function DashboardMap() {
-  const ctrlPressed = useKeyPress('Control', { preventDefault: false });
-  const [state, setState] = useState(snapshot), [selected, setSelected] = useState('pc'), [copyStatus, setCopyStatus] = useState('');
-  const initialNodes = useMemo(() => stages.map(stage => ({ id: stage.id, type: 'network', position: { ...stage.position }, data: { ...stage, status: tag(stage.id, state) }, selected: stage.id === 'pc' })), []);
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-  const { fitView, zoomIn, zoomOut } = useReactFlow();
+
+function DashboardTasks() {
+  const [state, setState] = useState(snapshot);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState('');
   useEffect(() => {
     const update = () => setState(snapshot());
     window.addEventListener('stealth-dashboard-state', update);
     update();
-    return () => { window.removeEventListener('stealth-dashboard-state', update); };
+    return () => window.removeEventListener('stealth-dashboard-state', update);
   }, []);
-  useEffect(() => { setNodes(current => current.map(node => ({ ...node, selected: node.id === selected, data: { ...node.data, status: tag(node.id, state) } }))); }, [state, selected, setNodes]);
-  async function copySetup() {
-    try { await navigator.clipboard.writeText('stealth-commander setup --enable-remote'); setCopyStatus('Setup command copied'); }
-    catch { setCopyStatus('Select and copy the command below'); }
+
+  async function refreshStatus() {
+    if (refreshing) return;
+    setRefreshing(true);
+    setRefreshError('');
+    try {
+      await window.loadAccountMe?.();
+      await window.poll?.();
+      setState(snapshot());
+    } catch {
+      setRefreshError('Could not refresh. Try again.');
+    } finally {
+      setRefreshing(false);
+    }
   }
-  function reset() { setSelected('pc'); setNodes(initialNodes.map(node => ({ ...node, position: { ...node.position }, selected: node.id === 'pc', data: { ...node.data, status: tag(node.id, state) } }))); window.requestAnimationFrame(() => fitView({ padding: .2, duration: 220 })); }
-  const stage = stages.find(item => item.id === selected);
-  return <div className="dashboard-network">
-    <div className="network-canvas-column">
-      <div className="network-section-heading"><span>Your connections</span><button type="button" onClick={async () => { await window.loadAccountMe?.(); await window.poll?.(); }}>Refresh status</button></div>
-      <div className="network-canvas" aria-label="Your account and device connection map">
-        <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} onNodesChange={onNodesChange} onNodeClick={(_, node) => setSelected(node.id)} onNodeDoubleClick={(_, node) => openTab(({ account: 'account', pc: 'account', tools: 'connect', sessions: 'live' })[node.id])} fitView fitViewOptions={{ padding: .2 }} minZoom={.3} maxZoom={1.5} nodesConnectable={false} deleteKeyCode={null} zoomOnScroll={false} zoomActivationKeyCode="Control" zoomOnPinch={ctrlPressed} zoomOnDoubleClick={false} panOnScroll={false} preventScrolling={false} ariaLabelConfig={{ 'node.a11yDescription.default': 'Select a node to see its controls. Use arrow keys to move it.' }}>
-          <Background variant={BackgroundVariant.Dots} color="#382447" gap={20} size={1} />
-        </ReactFlow>
-        <div className="network-selector" aria-label="Select connection stage">{stages.map(item => <button type="button" key={item.id} title={item.title} aria-pressed={selected === item.id} onClick={() => setSelected(item.id)}>{({account:'Account',pc:'PC',tools:'Tools',sessions:'Desktops'})[item.id]}</button>)}</div>
-        <span className="network-canvas-hint">Ctrl + scroll to zoom</span>
-        <div className="network-controls"><button type="button" aria-label="Zoom connection map in" onClick={() => zoomIn({ duration: 180 })}>+</button><button type="button" aria-label="Zoom connection map out" onClick={() => zoomOut({ duration: 180 })}>−</button><button type="button" onClick={() => fitView({ padding: .2, duration: 220 })}>Fit</button><button type="button" onClick={reset}>Reset</button></div>
-      </div>
+
+  const pcStatus = !state.signedIn ? 'Sign in required' : !state.selectedDevice ? 'No PC selected' : state.checked ? 'Device responding' : 'Connection not confirmed';
+  const pcDescription = !state.signedIn ? 'Sign in to manage your paired Windows PCs.' : !state.pairedCount ? 'Pair a Windows PC from your account to get started.' : 'Choose the Windows PC you want to use.';
+  const toolsStatus = state.checked ? `${state.connectedClients} / ${state.totalClients} clients configured` : 'Configuration not checked';
+  const desktopStatus = state.checked ? `${state.liveCount} active ${state.liveCount === 1 ? 'desktop' : 'desktops'}` : 'Sessions not checked';
+
+  return <section className="dashboard-tasks" aria-label="Desktop controls">
+    <div className="tasks-toolbar">
+      <span className="tasks-account-status">{state.signedIn ? `${state.pairedCount} paired ${state.pairedCount === 1 ? 'PC' : 'PCs'}` : 'Sign in to manage your PCs'}</span>
+      <button type="button" className="sec tasks-refresh" disabled={refreshing} onClick={refreshStatus}>{refreshing ? 'Refreshing...' : 'Refresh status'}</button>
     </div>
-    <aside className="network-inspector" aria-label="Selected connection actions">
-      <h2>{stage.title}</h2><div className="network-state">{tag(selected, state)}</div>
-      {selected === 'account' && <><p>Manage your account, paired Windows PCs, and access settings.</p><button type="button" onClick={() => openTab('account')}>Open account <span aria-hidden="true">↗</span></button><button type="button" className="sec" onClick={() => window.loadAccountMe?.()}>Refresh paired PCs</button></>}
-      {selected === 'pc' && <><p>{state.selectedDevice ? 'A PC is selected. Open its account record or inspect the installed client from Settings.' : 'Pair a Windows PC, then select it to use its installed tools and hidden desktops.'}</p><button type="button" onClick={() => openTab('account')}>{state.pairedCount ? 'Choose a paired PC' : 'Pair your first PC'}<span aria-hidden="true">↗</span></button><button type="button" className="sec" onClick={copySetup}>Copy setup command</button><code className="network-command">stealth-commander setup --enable-remote</code><span className="network-copy-status" role="status">{copyStatus}</span>{state.selectedDevice && <button type="button" className="sec" onClick={() => openTab('settings')}>Open diagnostics</button>}</>}
-      {selected === 'tools' && <><p>Configure supported local clients or connect through the OAuth MCP endpoint.</p><button type="button" onClick={() => openTab('connect')}>Manage connections <span aria-hidden="true">↗</span></button><button type="button" className="sec" onClick={() => openTab('usage')}>View usage and logs</button><div className="network-detail-note">Local client status is available after the selected PC responds.</div></>}
-      {selected === 'sessions' && <><p>Launch and inspect supported hidden sessions on your selected Windows PC.</p><button type="button" onClick={() => openTab('live')}>Open live desktops <span aria-hidden="true">↗</span></button><button type="button" className="sec" onClick={() => openTab('usage')}>View session activity</button><div className="network-detail-note">Session controls use the tools provided by your installed Windows client.</div></>}
-      <div className="network-roadmap"><span>UP NEXT</span><p>Mac, Linux, and more stealth tools coming soon.</p></div>
-    </aside>
-  </div>;
+    {refreshError && <p className="tasks-error" role="status">{refreshError}</p>}
+    <div className="task-cards">
+      <article className="task-card" data-task="pc">
+        <h2>Windows PC</h2>
+        <p className="task-status">{pcStatus}</p>
+        <p className="task-description">{pcDescription}</p>
+        <button type="button" onClick={() => openTab('account')}>{!state.signedIn ? 'Sign in' : state.pairedCount ? 'Choose a PC' : 'Pair a PC'}</button>
+      </article>
+      <article className="task-card" data-task="tools">
+        <h2>AI tools</h2>
+        <p className="task-status">{toolsStatus}</p>
+        <p className="task-description">Connect an MCP client or configure a supported local app.</p>
+        <button type="button" className="sec" onClick={() => openTab('connect')}>Connect AI / MCP</button>
+      </article>
+      <article className="task-card" data-task="desktops">
+        <h2>Hidden desktops</h2>
+        <p className="task-status">{desktopStatus}</p>
+        <p className="task-description">View and manage supported sessions on your selected PC.</p>
+        <button type="button" className="sec" onClick={() => openTab('live')}>Open desktops</button>
+      </article>
+    </div>
+    {!state.pairedCount && <p className="tasks-setup">Need the Windows client? <a href="/about#setup-title">Read the setup guide</a>.</p>}
+  </section>;
 }
 
 const root = document.getElementById('dashboard-flow-root');
-if (root) createRoot(root).render(<ReactFlowProvider><DashboardMap /></ReactFlowProvider>);
+if (root) createRoot(root).render(<DashboardTasks />);

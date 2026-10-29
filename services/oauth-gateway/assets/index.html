@@ -15,6 +15,7 @@ input,select{flex:1;min-width:130px;max-width:100%;background:#0b0711;border:1px
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
 .header-github{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-width:38px;min-height:38px;padding:8px 10px;margin-left:auto;border:1px solid #443052;border-radius:6px;color:#e6d6f1;text-decoration:none;font-size:11px;font-weight:600;flex-shrink:0}.header-github svg{width:20px;height:20px;fill:currentColor}.header-github:hover{color:#fff;border-color:#a855f7;background:#261336}.pills{margin-left:0}.pills #acctBtn,.pills #acctBtn.ok{background:transparent;border-color:#443052;color:#c9b4d9;font-weight:500}.device-tools{border:1px solid var(--border);border-radius:7px;background:var(--panel);overflow:hidden;margin-bottom:16px}.device-tools>summary{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:17px 19px;cursor:pointer;list-style:none;color:#cdb5df;font-size:12px;font-weight:500}.device-tools>summary::-webkit-details-marker{display:none}.device-tools>summary::after{content:'+';color:#c084fc;font:20px/1 var(--mono)}.device-tools[open]>summary::after{content:'−'}.device-tools>summary:focus-visible{outline:2px solid #c582ff;outline-offset:-5px}.device-tools>summary small{display:block;margin-top:5px;font:9px/1.4 var(--mono);color:#9482a4}.device-tools>.panel{border:0;border-top:1px solid var(--border);border-radius:0}.device-tools .device-actions{justify-content:flex-start}.device-tools .device-actions button{font-size:10px}.device-tools .device-actions #killTunBtn{flex-basis:auto}body[data-view="devices"] #setupBanner{display:none!important}
 @media(max-width:760px){.header-github{padding:8px;min-width:38px;min-height:38px}.header-github span{display:none}.device-tools>summary{padding:16px}.device-tools>summary small{font-size:8px}.device-tools .device-actions button{flex:1 1 140px}.pills #acctBtn{min-width:0}.pills{margin-left:0}}
+#setupBanner{display:none!important}summary{cursor:pointer}#manualClientSetup>summary{font-size:13px;color:#d8b1f2;padding:4px 0}
 </style></head><body data-view="devices">
 <header>
   <div class="brand"><a class="brand-home" id="brandHome" href="/" aria-label="Stealth Commander home"><img src="/icon.png" width="28" height="28" alt=""></a><span class="dot" id="hdot" data-state="disconnected" role="status" aria-label="Site connection not confirmed" title="Site connection not confirmed"></span><div class="brand-copy"><span id="host">Stealth Commander</span></div></div>
@@ -37,13 +38,13 @@ input,select{flex:1;min-width:130px;max-width:100%;background:#0b0711;border:1px
 </header>
 <main class="dashboard-main">
 <section id="view-devices" class="view active">
-  <div class="view-heading"><h1>Your command network.</h1></div>
-  <div id="dashboard-flow-root"><div class="flow-fallback">Your connection map is loading.<br><button onclick="showTab('account',document.getElementById('acctTabBtn'))">Manage paired PCs</button></div></div>
+  <div class="view-heading"><h1>Your workspace.</h1></div>
+  <div id="dashboard-flow-root"><div class="flow-fallback"><button onclick="showTab('account',document.getElementById('acctTabBtn'))">Manage paired PCs</button></div></div>
   <div class="kpis">
     <div class="kpi"><div class="lbl">Host Device</div><div class="val" id="k-host">—</div></div>
     <div class="kpi"><div class="lbl">Security Mode</div><div class="val" id="k-tun">Not checked</div></div>
     <div class="kpi"><div class="lbl">Active Hidden Desktops</div><div class="val" id="k-desk">Not checked</div></div>
-    <div class="kpi"><div class="lbl">Connected Local AI Clients</div><div class="val" id="k-cli">Not checked</div></div>
+    <div class="kpi"><div class="lbl">Configured Local AI Clients</div><div class="val" id="k-cli">Not checked</div></div>
   </div>
   <details class="device-tools" id="deviceTools">
     <summary><span>Device controls</span></summary>
@@ -60,7 +61,25 @@ input,select{flex:1;min-width:130px;max-width:100%;background:#0b0711;border:1px
 <section id="view-connect" class="view">
   <h1 class="section-title">Connect your tools.</h1>
   <div class="panel" style="margin-bottom:10px">
-    <h3><span>Local AI Clients on This PC</span><button class="ok" onclick="act('sync_clients')">Auto-Connect / Repair All Local Clients</button></h3>
+    <h3><span>Agent instructions</span><button id="copyAgentMd" onclick="copyText(document.getElementById('agentMdSnippet').textContent,'Copied AGENTS.md instructions.')">Copy AGENTS.md</button></h3>
+    <p>Paste this section into your project's <code>AGENTS.md</code>, keeping its existing instructions. Connect MCP first; this text does not install the tools.</p>
+    <details><summary>Preview instructions</summary><pre id="agentMdSnippet">## Stealth Commander
+
+Use Stealth Commander for authorized work on the selected Windows PC.
+
+- Start with doctor and inspect the available tool schemas. Check the readiness results for the requested workflow.
+- Use run_command for background commands. Use start_native_app, start_browser, or start_pycharm for an owned hidden desktop.
+- Confirm the session desktop differs from the active input desktop before GUI actions. Never use the shared mouse, keyboard, global hotkeys, or desktop switching as a fallback.
+- Keep the exact returned session path. Inspect its windows and controls before acting, and verify the actual output before reporting success.
+- Work within the requested project. Keep credentials, browser profiles, session data, logs, and captures out of published source.
+- Stop only the sessions created for the task when finished, unless asked to keep them active. Verify cleanup.
+
+Remote MCP: https://stealthcommander.pages.dev/mcp
+Use OAuth and explicitly select a paired PC. The Windows client must be installed and online. Never put account keys or private connection URLs in this file.</pre></details>
+  </div>
+  <div class="panel" style="margin-bottom:10px">
+    <h3><span>Local clients on the selected PC</span><button class="sec" onclick="act('sync_clients')">Update supported client configs</button></h3>
+    <p>Setup updates existing Codex, Claude Desktop, Cursor, Windsurf, Factory, and Gemini / Antigravity configuration directories. Restart the client, then check its MCP tools. A configuration entry alone does not confirm a live connection.</p>
     <table>
       <thead><tr><th>AI Client / IDE</th><th>Status</th><th>Config Path</th><th>Action</th></tr></thead>
       <tbody id="cliTable"></tbody>
@@ -69,28 +88,32 @@ input,select{flex:1;min-width:130px;max-width:100%;background:#0b0711;border:1px
   <div class="grid">
     <div class="panel">
       <h3><span>Configure an IDE connection</span></h3>
-      <p style="margin:0;font-size:12px;color:#aca1bd">Click to auto-register Stealth Commander in Cursor or VS Code, or copy the Remote MCP URL for ChatGPT, Claude Web, and mobile agents.</p>
+      <p style="margin:0;font-size:12px;color:#aca1bd">These links open an installation prompt in Cursor or VS Code on the computer running this browser. Install the approved Windows package globally first. From a source install, use the supported config update above instead.</p>
       <div class="row">
         <a class="btn" id="cursorLink" href="#">Open in Cursor</a>
         <a class="btn sec" id="vscodeLink" href="#">Open in VS Code</a>
-        <button class="sec" onclick="act('sync_clients')">Auto-Connect Local GPT / Claude / Droid</button>
       </div>
       <h3 style="margin-top:6px"><span>Remote HTTPS MCP Endpoint (ChatGPT / Claude / Mobile)</span><button class="sec" onclick="copyText(document.getElementById('mcpUrlCode').textContent,'Copied Remote MCP URL!')">Copy URL</button></h3>
       <code class="blk" id="mcpUrlCode"></code>
       <p>Connect with OAuth, sign in to your Stealth Commander account, and choose one paired PC.</p>
     </div>
     <div class="panel">
-      <h3><span>MCP configuration (Claude Desktop / Cursor / Windsurf / Droid)</span><button class="sec" onclick="copyText(document.getElementById('jsonSnippet').textContent,'Copied JSON config!')">Copy JSON</button></h3>
+      <details id="manualClientSetup"><summary>Manual local client setup</summary>
+      <h3><span>Local MCP configuration</span><button class="sec" onclick="copyText(document.getElementById('jsonSnippet').textContent,'Copied JSON config!')">Copy JSON</button></h3>
+      <p>For Claude Desktop, Cursor, Windsurf, or Factory. These manual examples require <code>stealth-commander</code> on PATH from a global install of an approved package archive. Source setup registers supported clients with absolute paths instead. No public npm package is available.</p>
       <pre id="jsonSnippet">{
   "mcpServers": {
     "stealth-commander": {
-      "command": "stealth-commander",
-      "args": ["serve"]
+      "command": "cmd",
+      "args": ["/d", "/c", "stealth-commander", "serve"]
     }
   }
 }</pre>
-      <h3><span>ChatGPT / Codex CLI & Claude Code CLI</span><button class="sec" onclick="copyText('claude mcp add stealth-commander -- stealth-commander serve','Copied Claude CLI command!')">Copy CLI</button></h3>
-      <code class="blk">claude mcp add stealth-commander -- stealth-commander serve</code>
+      <h3><span>Claude Code CLI</span><button class="sec" onclick="copyText(document.getElementById('claudeCliSnippet').textContent,'Copied Claude Code command.')">Copy Claude command</button></h3>
+      <code class="blk" id="claudeCliSnippet">claude mcp add --transport stdio stealth-commander -- cmd /d /c stealth-commander serve</code>
+      <h3><span>Codex CLI</span><button class="sec" onclick="copyText(document.getElementById('codexCliSnippet').textContent,'Copied Codex command.')">Copy Codex command</button></h3>
+      <code class="blk" id="codexCliSnippet">codex mcp add stealth-commander -- cmd /d /c stealth-commander serve</code>
+      </details>
     </div>
   </div>
 </section>
@@ -146,7 +169,7 @@ input,select{flex:1;min-width:130px;max-width:100%;background:#0b0711;border:1px
     </div>
     <div class="panel">
       <h3>System Diagnostics & Endpoints</h3>
-      <div class="row"><button class="sec" onclick="act('doctor')">Run Environment Doctor</button><button class="sec" onclick="act('sync_clients')">Sync All AI Clients</button></div>
+      <div class="row"><button class="sec" onclick="act('doctor')">Run Environment Doctor</button><button class="sec" onclick="act('sync_clients')">Update client configs</button></div>
       <pre id="diagOut">Click "Run Environment Doctor" to inspect Python, Chrome, PyCharm, and Direct3D 11 readiness.</pre>
     </div>
   </div>
@@ -177,11 +200,11 @@ input,select{flex:1;min-width:130px;max-width:100%;background:#0b0711;border:1px
       </div>
     </div>
     <div class="panel">
-      <h3><span>CLI Account Login & Setup</span><button class="sec" onclick="copyText('stealth-commander login','Copied CLI login command!')">Copy CLI Login</button></h3>
-      <p style="margin:0;font-size:12px;color:#aca1bd">If you have the Windows client, sign in from PowerShell:</p>
-      <code class="blk">stealth-commander login</code>
+      <h3><span>CLI Account Login & Setup</span><button class="sec" onclick="copyText('node ./bin/stealth-commander.js login','Copied CLI login command!')">Copy CLI Login</button></h3>
+      <p style="margin:0;font-size:12px;color:#aca1bd">Open PowerShell in the extracted Windows client folder containing package.json:</p>
+      <code class="blk">node ./bin/stealth-commander.js login</code>
       <h3><span>Check Signed-In Account in CLI</span></h3>
-      <code class="blk">stealth-commander whoami</code>
+      <code class="blk">node ./bin/stealth-commander.js whoami</code>
     </div>
   </div>
 
@@ -203,7 +226,11 @@ input,select{flex:1;min-width:130px;max-width:100%;background:#0b0711;border:1px
         <h3><span>Account Security & Personal API Key</span><div class="row"><button class="sec" id="acctKeyReveal" type="button" aria-controls="acctKeyCode" aria-pressed="false" onclick="toggleAccountKey()" disabled>Show key</button><button class="sec" id="acctKeyCopy" type="button" onclick="copyAccountKey()" disabled>Copy API Key</button><button class="sec" onclick="rotateApiKey()">Rotate Key</button><button class="danger" onclick="logoutAccount()">Sign Out</button></div></h3>
         <code class="blk" id="acctKeyCode">—</code>
         <h3 style="margin-top:6px"><span>Pair this Windows PC and enable remote access</span><button class="sec" onclick="copyText(document.getElementById('acctSetupCmd').textContent,'Copied Account Setup Command!')">Copy Setup Command</button></h3>
-        <code class="blk" id="acctSetupCmd">stealth-commander setup --enable-remote</code>
+        <div class="row"><label for="setupInstallMode">Windows client installation</label><select id="setupInstallMode" onchange="renderSetupCommand()"><option value="source">Extracted source folder</option><option value="global">Globally installed package archive</option></select></div>
+        <p id="setupCommandHelp">Open PowerShell in the client folder containing package.json. Setup prompts for your account key without showing it.</p>
+        <code class="blk" id="acctSetupCmd">node ./bin/stealth-commander.js setup --enable-remote</code>
+        <details><summary>First-time installation</summary><p>Windows x64, Node.js 18+, and 64-bit Python 3.11+ are required. From the extracted client folder:</p><pre>node ./bin/stealth-commander.js install
+node ./bin/stealth-commander.js doctor</pre><p>Read the readiness results, then run the setup command above. <a href="/about#setup-title">Setup requirements</a></p></details>
       </div>
       <div class="panel">
         <h3><span>Account-Linked Windows PCs & VDI Nodes</span><button class="sec" onclick="loadAccountMe(true)">Refresh Devices</button></h3>
@@ -244,7 +271,7 @@ input,select{flex:1;min-width:130px;max-width:100%;background:#0b0711;border:1px
 <div id="setupBanner" class="panel" style="display:none;margin-bottom:10px;border-color:#a855f7;background:#160c20">
   <h3><span id="setupBannerTitle">Sign in to your Stealth Commander account</span><div class="row"><button id="setupBannerAccountBtn" onclick="openAuthModal()">Sign In / Create Account</button><button class="sec" onclick="copyText(document.getElementById('bannerSetupCmd').textContent,'Copied setup command!')">Copy Setup Command</button></div></h3>
   <p id="setupBannerDescription" style="margin:0;font-size:12px;color:#b7a4c9">Sign in to manage your paired Windows PCs. To pair a new PC, run the command below in PowerShell on that Windows PC.</p>
-  <code class="blk" id="bannerSetupCmd">stealth-commander setup --enable-remote</code>
+  <code class="blk" id="bannerSetupCmd">node ./bin/stealth-commander.js setup --enable-remote</code>
   <p>The Windows client is distributed privately. <a href="/about">Setup requirements</a></p>
 </div>
 <footer class="dashboard-footer"><nav><a href="/">Home</a><a href="/about">About</a><a href="/support">Support</a><a href="https://github.com/maplesyzzurp/Stealth-Commander-MCP" target="_blank" rel="noopener noreferrer">GitHub</a></nav></footer>
@@ -305,7 +332,14 @@ const AUTH_ORIGIN='https://stealthcommander.pages.dev';
 const rawPath=location.pathname.replace(/\/+$/,'');
 const out=document.getElementById('out'),grid=document.getElementById('grid'),cards=new Map();
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.style.display='block';setTimeout(()=>t.style.display='none',2200);}
-function copyText(txt,msg){navigator.clipboard.writeText(txt);toast(msg||'Copied!');}
+async function copyText(txt,msg){try{await navigator.clipboard.writeText(txt);toast(msg||'Copied!');return true;}catch(_){toast('Could not copy. Select the text and copy it manually.');return false;}}
+function renderSetupCommand(){
+  const globalInstall=document.getElementById('setupInstallMode').value==='global';
+  const command=(globalInstall?'stealth-commander':'node ./bin/stealth-commander.js')+' setup --enable-remote';
+  document.getElementById('acctSetupCmd').textContent=command;
+  document.getElementById('bannerSetupCmd').textContent=command;
+  document.getElementById('setupCommandHelp').textContent=globalInstall?'Requires an approved package archive installed with npm --global. Setup prompts for your account key without showing it.':'Open PowerShell in the client folder containing package.json. Setup prompts for your account key without showing it.';
+}
 // Account key display. Keep the raw value out of attributes and copy from account memory.
 function renderAccountKey(value=currentAccount?.api_key){
   const key=typeof value==='string'?value:'';
@@ -468,10 +502,7 @@ function renderAccountState(user){
   if(inP)inP.style.display='block';
   document.getElementById('acctEmailVal').textContent=user.email||'—';
   document.getElementById('acctNameVal').textContent=user.name||user.email.split('@')[0];
-  const setupCmd='stealth-commander setup --enable-remote';
-  document.getElementById('acctSetupCmd').textContent=setupCmd;
-  const bCmd=document.getElementById('bannerSetupCmd');
-  if(bCmd)bCmd.textContent=setupCmd;
+  renderSetupCommand();
   const devs=Array.isArray(user.devices)?user.devices:[];
   document.getElementById('acctDevCount').textContent=String(devs.length);
   const tb=document.getElementById('acctDevsTable');
@@ -482,9 +513,9 @@ function renderAccountState(user){
       return `<tr>
         <td><strong>${escapeHtml(d.hostname||d.device_id||'Windows PC')}</strong></td>
         <td>${escapeHtml(d.username||'—')}</td>
-        <td><span class="pill ${d.tunnel_url?'ok':'warn'}">${active?'CONNECTED':(d.tunnel_url?'HTTPS TUNNEL':'LOCAL ONLY')}</span></td>
+        <td><span class="pill ${d.tunnel_url?'ok':'warn'}">${active?'SELECTED':(d.tunnel_url?'HTTPS TUNNEL':'LOCAL ONLY')}</span></td>
         <td class="row">
-          ${id?`<button class="${active?'ok':'sec'}" onclick="switchAccountDevice(${jsArg(id)})">${active?'Active':'Connect'}</button>`:''}
+          ${id?`<button class="${active?'ok':'sec'}" onclick="switchAccountDevice(${jsArg(id)})">${active?'Selected':'Use PC'}</button>`:''}
           <button class="danger" onclick="unlinkAccountDevice(${jsArg(d.device_id||d.hostname)})">Unlink</button>
         </td>
       </tr>`;
@@ -604,9 +635,9 @@ async function initApiBase(){
   await loadAccountMe(false);
   document.getElementById('mcpUrlCode').textContent='https://stealthcommander.pages.dev/mcp';
 }
-const cursorCfg=btoa(JSON.stringify({command:"stealth-commander",args:["serve"]}));
+const cursorCfg=btoa(JSON.stringify({command:"cmd",args:["/d","/c","stealth-commander","serve"]}));
 document.getElementById('cursorLink').href='cursor://anysphere.cursor-deeplink/mcp/install?name=stealth-commander&config='+encodeURIComponent(cursorCfg);
-document.getElementById('vscodeLink').href='vscode:mcp/install?'+encodeURIComponent(JSON.stringify({name:'stealth-commander',command:'stealth-commander',args:['serve']}));
+document.getElementById('vscodeLink').href='vscode:mcp/install?'+encodeURIComponent(JSON.stringify({name:'stealth-commander',type:'stdio',command:'cmd',args:['/d','/c','stealth-commander','serve']}));
 
 async function act(kind,extra={}){
   if(!currentAccount||!selectedDeviceId){toast('Sign in and choose your paired PC.');return;}
@@ -670,9 +701,9 @@ async function poll(){
     dashboardTelemetry={liveCount,connectedClients:connCount,totalClients:clients.length};publishDashboardState();
     document.getElementById('cliTable').innerHTML=clients.map(c=>`<tr>
       <td><strong>${escapeHtml(c.name)}</strong></td>
-      <td><span class="pill ${c.connected?'ok':'warn'}">${c.connected?'CONNECTED':'NOT CONNECTED'}</span></td>
+      <td><span class="pill ${c.connected?'ok':'warn'}">${c.connected?'CONFIGURED':'NOT CONFIGURED'}</span></td>
       <td style="color:#aca1bd;font-family:monospace;font-size:11px">${escapeHtml(c.config_path)}</td>
-      <td><button class="sec" onclick="act('sync_clients')">${c.connected?'Re-sync':'Connect'}</button></td>
+      <td><button class="sec" onclick="act('sync_clients')">Update configs</button></td>
     </tr>`).join('');
 
     const devs=j.devices||[];
