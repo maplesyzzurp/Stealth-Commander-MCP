@@ -87,17 +87,29 @@ def owned_windows(state):
     return h.windows(browser_state(state))
 
 
+def owned_debug_listeners(sockets, port, allowed):
+    """Owned loopback socket on the debug port. Windows may report it as NONE, not LISTEN."""
+    closing = {'FIN_WAIT1', 'FIN_WAIT2', 'CLOSE', 'TIME_WAIT', 'CLOSE_WAIT', 'LAST_ACK', 'CLOSING'}
+    on_port = [c for c in sockets if getattr(c, 'laddr', None) and c.laddr.port == port]
+    owned = [c for c in on_port if c.pid in allowed and c.laddr.ip in ('127.0.0.1', '::1') and c.status not in closing]
+    foreign = [c for c in on_port if c.pid and c.pid not in allowed]
+    return owned, foreign
+
+
 def owned_endpoint(state):
     process = verify_identity(state['pid'], state['process_created'], state['browser'])
     profile_argument = '--user-data-dir=' + str(Path(state['session']) / 'profile')
     if profile_argument not in process.cmdline():
         raise RuntimeError('The browser does not have this session\'s private profile.')
-    port = state['cdp_port']
-    listeners = [c for c in h.psutil.net_connections(kind='tcp')
-                 if c.status == 'LISTEN' and c.laddr.port == port]
-    if not listeners or any(c.pid != state['pid'] or c.laddr.ip not in ('127.0.0.1', '::1') for c in listeners):
+    allowed = {state['pid']}
+    try:
+        allowed.update(child.pid for child in process.children(recursive=True))
+    except (h.psutil.Error, OSError):
+        pass
+    owned, foreign = owned_debug_listeners(h.psutil.net_connections(kind='tcp'), state['cdp_port'], allowed)
+    if not owned or foreign:
         raise RuntimeError('The debugging endpoint is not an owned loopback listener.')
-    return f'http://127.0.0.1:{port}'
+    return f'http://127.0.0.1:{state["cdp_port"]}'
 
 
 def prepare_scenario(source, state):

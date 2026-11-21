@@ -159,6 +159,80 @@ class StealthCommanderMcpTests(unittest.TestCase):
                     self.assertTrue(out_res["ok"])
                     self.assertFalse(acct_file.is_file())
 
+    def test_ai_attribution_frame_endpoint_and_residue_reconcile(self):
+        import http.client
+        import threading
+
+        route_id = "unit_test_frame_route_identifier_1111"
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            disc = root / "discovered"
+            disc.mkdir()
+            # Plant synthetic stale residue (dead registry-* dir + stale probe-*.json)
+            dead_reg = disc / "registry-deadbeef0001"
+            dead_reg.mkdir()
+            (dead_reg / "leftover.png").write_bytes(b"png")
+            stale_probe = disc / "probe-deadbeef0001.json"
+            stale_probe.write_text("{}", encoding="utf-8")
+
+            sessions_file = root / "active_sessions.json"
+            hub_file = root / "hub_state.json"
+            with mock.patch.object(mcp, "_sessions_state_file", return_value=sessions_file), \
+                 mock.patch.object(mcp, "_hub_state_file", return_value=hub_file):
+                mcp.handle_rpc({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"clientInfo": {"name": "Codex", "version": "2.0"}}})
+                self.assertEqual(mcp._detect_owner_ai(), "Codex 2.0")
+                mcp._register_session(
+                    desktop="PyCharmHarness_Native_abc123",
+                    kind="native",
+                    session_dir=str(root / "sess1"),
+                    owner_ai="Codex 2.0",
+                    task="Debugging dropdown",
+                    pids=[12345],
+                )
+                handler = mcp._make_remote_hub_handler(route_id, root)
+                server = mcp.ThreadingHTTPServer(("127.0.0.1", 0), handler)
+                thread = threading.Thread(target=server.serve_forever, daemon=True)
+                thread.start()
+                try:
+                    fake_dash = {"ok": True, "meta": {"desktops": [{
+                        "id": "desk1234",
+                        "name": "Desktop Native abc123",
+                        "state": "stale",
+                        "url": "http://127.0.0.1:59999/obs",
+                        "windows": [{"title": "MacroLang Test"}],
+                    }]}}
+                    with mock.patch.object(mcp, "ensure_dashboard", return_value=fake_dash), \
+                         mock.patch.object(mcp, "_fetch_single_jpeg", return_value=b"\xff\xd8FAKEJPEG\xff\xd9"):
+                        conn = http.client.HTTPConnection("127.0.0.1", server.server_port, timeout=3)
+                        conn.request("GET", f"/{route_id}/meta")
+                        meta = json.loads(conn.getresponse().read().decode("utf-8"))
+                        conn.close()
+                        self.assertEqual(len(meta["desktops"]), 1)
+                        card = meta["desktops"][0]
+                        self.assertEqual(card["owner_ai"], "Codex 2.0")
+                        self.assertEqual(card["task"], "Debugging dropdown")
+                        self.assertEqual(card["frame_path"], f"/{route_id}/frame/desk1234.jpg")
+
+                        conn = http.client.HTTPConnection("127.0.0.1", server.server_port, timeout=3)
+                        conn.request("GET", f"/{route_id}/frame/desk1234.jpg")
+                        fresp = conn.getresponse()
+                        fbytes = fresp.read()
+                        conn.close()
+                        self.assertEqual(fresp.status, 200)
+                        self.assertEqual(fresp.getheader("Content-Type"), "image/jpeg")
+                        self.assertTrue(fbytes.startswith(b"\xff\xd8"))
+
+                        reclaimed = mcp._reconcile_sessions(root, live_desktops=set(), force=True)
+                        self.assertEqual(reclaimed["removed_dirs"], 1)
+                        self.assertEqual(reclaimed["removed_probes"], 1)
+                        self.assertFalse(dead_reg.exists())
+                        self.assertFalse(stale_probe.exists())
+                finally:
+                    server.shutdown()
+                    server.server_close()
+                    mcp._ACTIVE_CLIENT["name"] = ""
+                    mcp._ACTIVE_CLIENT["version"] = ""
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -8,6 +8,7 @@ import math
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 import threading
@@ -218,6 +219,7 @@ class DesktopRegistry:
         self._snapshot = list(self._initial)
         self._errors = []
         self._last_scan = None
+        self._last_gc = 0.0
 
     def start(self):
         if self._stop.is_set():
@@ -350,10 +352,73 @@ class DesktopRegistry:
                 self._snapshot = [available[key] for key in sorted(available, key=self._desktop_order.get)]
                 self._last_scan = time.time()
                 self._errors = errors
+            self.reap_residue(force=False)
 
     @staticmethod
     def _friendly(desktop):
         return "Desktop " + desktop.split("_", 1)[1].replace("_", " ")[:80]
+
+    def _cleanup_registry_dir(self, root):
+        """Remove an owned registry-<id> attempt directory after its observer stops."""
+        try:
+            resolved = Path(root).resolve()
+            candidate = resolved.parent if resolved.name.startswith("watch-") else resolved
+            if (candidate != self.workdir and candidate.name.startswith("registry-")
+                    and not candidate.is_symlink() and candidate.is_dir()
+                    and candidate.is_relative_to(self.workdir)):
+                shutil.rmtree(candidate, ignore_errors=True)
+                return not candidate.exists()
+        except OSError:
+            pass
+        return False
+
+    def reap_residue(self, *, force=False):
+        """Terraform-style garbage collection of stale probes and dead registry-* dirs."""
+        now_mono = time.monotonic()
+        if not force and (now_mono - self._last_gc) < 30.0:
+            return {"removed_dirs": 0, "removed_probes": 0}
+        self._last_gc = now_mono
+        removed_dirs = 0
+        removed_probes = 0
+        if not self.workdir.is_dir():
+            return {"removed_dirs": 0, "removed_probes": 0}
+        now_wall = time.time()
+        owned_parents = {Path(r).resolve().parent for r in self._owned}
+        for probe in list(self.workdir.glob("probe-*.json")):
+            try:
+                if probe.is_symlink() or not probe.is_file():
+                    continue
+                if force or (now_wall - probe.stat().st_mtime) > 30.0:
+                    probe.unlink(missing_ok=True)
+                    removed_probes += 1
+            except OSError:
+                continue
+        for attempt in list(self.workdir.glob("registry-*")):
+            try:
+                resolved = attempt.resolve()
+                if attempt.is_symlink() or not attempt.is_dir() or not resolved.is_relative_to(self.workdir):
+                    continue
+                if resolved in owned_parents:
+                    continue
+                if not force and (now_wall - attempt.stat().st_mtime) < 45.0:
+                    continue
+                alive = False
+                for watch in attempt.glob("watch-*"):
+                    try:
+                        cfg = self._reader(watch)
+                        spid, screated = cfg.get("server_pid"), cfg.get("server_created")
+                        if _pid(spid) and _positive(screated) and _same(self._info(spid), spid, screated, sys.executable):
+                            alive = True
+                            break
+                    except Exception:
+                        continue
+                if not alive:
+                    shutil.rmtree(resolved, ignore_errors=True)
+                    if not resolved.exists():
+                        removed_dirs += 1
+            except OSError:
+                continue
+        return {"removed_dirs": removed_dirs, "removed_probes": removed_probes}
 
     def _release(self, root, record):
         config = record["config"]
@@ -371,6 +436,7 @@ class DesktopRegistry:
                     return False
                 self._stopper(root)
             self._owned.pop(root, None)
+            self._cleanup_registry_dir(root)
             return True
         except Exception:
             return False
@@ -433,7 +499,7 @@ class DesktopRegistry:
         attempt.mkdir(parents=True)
         args = [sys.executable, "-B", str(Path(__file__).with_name("desktop_watch.py")), "start",
                 "--desktop", candidate["desktop"], "--pid", str(candidate["pid"]), "--scope", "desktop",
-                "--interval", ".0167", "--port", "0", "--work-dir", str(attempt)]
+                "--interval", "0.1", "--port", "0", "--work-dir", str(attempt)]
         process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             text=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         started = time.monotonic()

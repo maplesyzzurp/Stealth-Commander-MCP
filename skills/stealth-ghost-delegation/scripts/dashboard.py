@@ -368,8 +368,10 @@ def check_processes(config):
         raise ValueError("Observer interpreter does not match.")
     port = urlsplit(config["url"]).port
     connections = getattr(server, "net_connections", None) or server.connections
-    if not any(connection.status == h.psutil.CONN_LISTEN and connection.laddr.ip == "127.0.0.1"
-               and connection.laddr.port == port for connection in connections(kind="tcp")):
+    closing = {"FIN_WAIT1", "FIN_WAIT2", "CLOSE", "TIME_WAIT", "CLOSE_WAIT", "LAST_ACK", "CLOSING"}
+    # Windows can report an owned listener as NONE rather than LISTEN.
+    if not any(connection.laddr.ip == "127.0.0.1" and connection.laddr.port == port and connection.status not in closing
+               for connection in connections(kind="tcp")):
         raise ValueError("Observer process does not own the stream listener.")
     if config.get("worker_created") is not None:
         worker = h.psutil.Process(config["worker_pid"])

@@ -25,7 +25,9 @@ SCRIPTS_DIR = Path(__file__).resolve().parent
 DEFAULT_DASHBOARD_PORT = 61076
 DEFAULT_HUB_PORT = 61077
 PAGES_ORIGIN = "https://stealthcommander.pages.dev"
-SERVER_INFO = {"name": "Stealth Commander", "version": "1.1.3-private.6"}
+SERVER_INFO = {"name": "Stealth Commander", "version": "1.1.3-private.9"}
+MCP_PROTOCOL_VERSIONS = ("2024-11-05", "2025-03-26", "2025-06-18")
+_ACTIVE_CLIENT = {"name": "", "version": ""}
 
 TOOLS = [
     {
@@ -78,6 +80,8 @@ TOOLS = [
                 "executable": {"type": "string", "description": "Absolute path to the executable."},
                 "work_dir": {"type": "string", "description": "Working directory for the launched process."},
                 "args": {"type": "array", "items": {"type": "string"}, "description": "Optional command-line arguments."},
+                "owner_ai": {"type": "string", "description": "Optional AI/client label shown on the dashboard."},
+                "task": {"type": "string", "description": "Optional short task description shown on the dashboard."},
             },
             "required": ["session", "executable", "work_dir"],
         },
@@ -91,6 +95,8 @@ TOOLS = [
                 "work_dir": {"type": "string", "description": "Parent directory for the new browser session."},
                 "browser": {"type": "string", "description": "Installed Chrome executable path."},
                 "rea_cli": {"type": "string", "description": "Installed REA CLI script path."},
+                "owner_ai": {"type": "string", "description": "Optional AI/client label shown on the dashboard."},
+                "task": {"type": "string", "description": "Optional short task description shown on the dashboard."},
             },
             "required": ["work_dir", "browser", "rea_cli"],
         },
@@ -105,6 +111,8 @@ TOOLS = [
                 "runs": {"type": "array", "items": {"type": "string"}, "description": "Name=relative_script.py run configurations."},
                 "work_dir": {"type": "string", "description": "Optional parent directory for the session."},
                 "python_exe": {"type": "string", "description": "Optional project Python interpreter path."},
+                "owner_ai": {"type": "string", "description": "Optional AI/client label shown on the dashboard."},
+                "task": {"type": "string", "description": "Optional short task description shown on the dashboard."},
             },
             "required": ["project"],
         },
@@ -355,35 +363,106 @@ def _spawn_detached(cmd_args):
     return proc.pid
 
 
+def _dashboard_spawn_lock():
+    # ponytail: one global spawn lock; per-caller locks if several machines share this profile.
+    path = _ports_config_file().with_name("dashboard-spawn.lock")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    handle = path.open("a+b")
+    try:
+        if handle.seek(0, os.SEEK_END) == 0:
+            handle.write(b"\0")
+            handle.flush()
+        handle.seek(0)
+        if os.name == "nt":
+            import msvcrt
+            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        handle.close()
+        return None
+    return handle
+
+
+def _dashboard_spawn_unlock(handle):
+    if handle is None:
+        return
+    try:
+        handle.seek(0)
+        if os.name == "nt":
+            import msvcrt
+            msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    except OSError:
+        pass
+    handle.close()
+
+
+def _wait_saved_dashboard(url, deadline):
+    while time.monotonic() < deadline:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        meta = _fetch_dashboard_meta(url, timeout=min(6.0, remaining))
+        if meta is not None:
+            return {"ok": True, "url": url, "meta": meta, "started": False}
+        time.sleep(min(0.15, max(0.0, deadline - time.monotonic())))
+    return {"ok": False, "url": url, "started": False, "error": "Dashboard port is open but meta is unavailable."}
+
+
 def ensure_dashboard(work_dir=None):
     deadline = time.monotonic() + 8.0
     url = _saved_dashboard_url()
     parsed = _validated_loopback_url(url)
-    meta = _fetch_dashboard_meta(url, timeout=0.5) if parsed else None
-    try:
-        if meta is not None:
+    meta = _fetch_dashboard_meta(url, timeout=6.0) if parsed else None
+    if meta is not None:
+        try:
             _save_port("dashboard", parsed.port)
-            return {"ok": True, "url": url, "meta": meta, "started": False}
+        except (OSError, ValueError):
+            return {"ok": False, "started": False, "error": "Cannot select and save a usable loopback dashboard port."}
+        return {"ok": True, "url": url, "meta": meta, "started": False}
+    if parsed and _port_open(parsed.port):
+        return _wait_saved_dashboard(url, deadline)
+    lock = _dashboard_spawn_lock()
+    if lock is None:
+        return _wait_saved_dashboard(url, deadline) if parsed else {
+            "ok": False, "started": False, "error": "Dashboard startup is already in progress."}
+    try:
+        url2 = _saved_dashboard_url()
+        if url2 != url:
+            url = url2
+            parsed = _validated_loopback_url(url)
+            meta = _fetch_dashboard_meta(url, timeout=6.0) if parsed else None
+            if meta is not None:
+                _save_port("dashboard", parsed.port)
+                return {"ok": True, "url": url, "meta": meta, "started": False}
+            if parsed and _port_open(parsed.port):
+                return _wait_saved_dashboard(url, deadline)
         port = _choose_loopback_port("dashboard")
+        token = secrets.token_urlsafe(32)
+        target_url = f"http://127.0.0.1:{port}/{token}"
+        base_root = Path(work_dir) if work_dir else Path(tempfile.gettempdir()) / "stealth-commander"
+        daemon_script = str(Path(__file__).resolve())
+        _spawn_detached([sys.executable, "-B", daemon_script, "--serve-dashboard", str(port), token, str(base_root)])
+        while time.monotonic() < deadline:
+            time.sleep(min(0.15, max(0.0, deadline - time.monotonic())))
+            saved_url = _saved_dashboard_url()
+            saved = _validated_loopback_url(saved_url)
+            live_url = saved_url if saved and saved.port == port else target_url
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            meta = _fetch_dashboard_meta(live_url, timeout=min(0.3, remaining))
+            if meta is not None:
+                return {"ok": True, "url": live_url, "meta": meta, "started": True}
+        return {"ok": False, "url": target_url, "started": False, "error": "Dashboard startup did not become ready on the selected loopback port."}
     except (OSError, ValueError):
         return {"ok": False, "started": False, "error": "Cannot select and save a usable loopback dashboard port."}
-    token = secrets.token_urlsafe(32)
-    target_url = f"http://127.0.0.1:{port}/{token}"
-    base_root = Path(work_dir) if work_dir else Path(tempfile.gettempdir()) / "stealth-commander"
-    daemon_script = str(Path(__file__).resolve())
-    _spawn_detached([sys.executable, "-B", daemon_script, "--serve-dashboard", str(port), token, str(base_root)])
-    while time.monotonic() < deadline:
-        time.sleep(min(0.15, max(0.0, deadline - time.monotonic())))
-        saved_url = _saved_dashboard_url()
-        saved = _validated_loopback_url(saved_url)
-        live_url = saved_url if saved and saved.port == port else target_url
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            break
-        meta = _fetch_dashboard_meta(live_url, timeout=min(0.3, remaining))
-        if meta is not None:
-            return {"ok": True, "url": live_url, "meta": meta, "started": True}
-    return {"ok": False, "url": target_url, "started": False, "error": "Dashboard startup did not become ready on the selected loopback port."}
+    finally:
+        _dashboard_spawn_unlock(lock)
 
 
 def _serve_dashboard(port, token, base_root_str):
@@ -400,22 +479,10 @@ def _serve_dashboard(port, token, base_root_str):
     base_root = Path(base_root_str).resolve()
     discover_root = base_root / "discovered"
     discover_root.mkdir(parents=True, exist_ok=True)
-    sources = []
-    for pattern in ("*/watch.json", "*/*/watch.json", "*/*/*/watch.json"):
-        for watch_json in base_root.glob(pattern):
-            if "discovered" in watch_json.parts:
-                continue
-            try:
-                sources.append(d.approve_watch(watch_json.parent, f"Desktop · {watch_json.parent.parent.name}"))
-            except Exception:
-                pass
-            if len(sources) >= 16:
-                break
-    registry = DesktopRegistry(sources, discover_root, scan_roots=[base_root])
-    registry.start()
+    registry = DesktopRegistry([], discover_root, scan_roots=[base_root])
     sampler, gpu = DesktopMetricsSampler(), GpuSampler()
     try:
-        server = ThreadingHTTPServer(("127.0.0.1", int(port)), d.make_handler(sources, token, sampler, gpu, registry))
+        server = ThreadingHTTPServer(("127.0.0.1", int(port)), d.make_handler([], token, sampler, gpu, registry))
     except OSError as exc:
         registry.close()
         gpu.close()
@@ -426,6 +493,7 @@ def _serve_dashboard(port, token, base_root_str):
     cfg.parent.mkdir(parents=True, exist_ok=True)
     cfg.write_text(json.dumps({"dashboard_url": url}, indent=2) + "\n", encoding="utf-8")
     _save_port("dashboard", server.server_port)
+    registry.start()
     try:
         server.serve_forever()
     finally:
@@ -597,6 +665,22 @@ def handle_tool_call(name, arguments, *, _runner=_run_script):
         if args.get("args"):
             cli.extend(["--", *[str(x) for x in args["args"]]])
         res = _runner("native_desktop.py", cli)
+        if _runner is _run_script and isinstance(res, dict) and res.get("ok"):
+            inner = res.get("result") or {}
+            desktop = inner.get("desktop")
+            if desktop:
+                pids = [p.get("pid") for p in (inner.get("processes") or []) if isinstance(p, dict) and p.get("pid")]
+                launch_pid = (inner.get("launch") or {}).get("pid")
+                if launch_pid and launch_pid not in pids:
+                    pids.append(launch_pid)
+                _register_session(
+                    desktop=desktop,
+                    kind="native",
+                    session_dir=inner.get("session") or args["session"],
+                    owner_ai=_detect_owner_ai(args.get("owner_ai")),
+                    task=(args.get("task") or Path(args["executable"]).stem)[:96],
+                    pids=pids,
+                )
         if auto_dash and auto_dash.get("url") and isinstance(res, dict):
             res["dashboard_url"] = auto_dash["url"]
         return res
@@ -607,6 +691,19 @@ def handle_tool_call(name, arguments, *, _runner=_run_script):
         if args.get("rea_cli"):
             cli.extend(["--rea-cli", args["rea_cli"]])
         res = _runner("rea_bridge.py", cli)
+        if _runner is _run_script and isinstance(res, dict) and res.get("ok"):
+            inner = res.get("result") or {}
+            desktop = inner.get("desktop")
+            if desktop:
+                pids = [inner["pid"]] if inner.get("pid") else []
+                _register_session(
+                    desktop=desktop,
+                    kind="browser",
+                    session_dir=inner.get("session") or "",
+                    owner_ai=_detect_owner_ai(args.get("owner_ai")),
+                    task=(args.get("task") or "Isolated Chrome Browser")[:96],
+                    pids=pids,
+                )
         if auto_dash and auto_dash.get("url") and isinstance(res, dict):
             res["dashboard_url"] = auto_dash["url"]
         return res
@@ -619,6 +716,19 @@ def handle_tool_call(name, arguments, *, _runner=_run_script):
         if args.get("python_exe"):
             cli.extend(["--python", args["python_exe"]])
         res = _runner("harness.py", cli, timeout=180)
+        if _runner is _run_script and isinstance(res, dict) and res.get("ok"):
+            inner = res.get("result") or {}
+            desktop = inner.get("desktop")
+            if desktop:
+                pids = [inner["pid"]] if inner.get("pid") else []
+                _register_session(
+                    desktop=desktop,
+                    kind="pycharm",
+                    session_dir=inner.get("session") or "",
+                    owner_ai=_detect_owner_ai(args.get("owner_ai")),
+                    task=(args.get("task") or f"PyCharm: {Path(args['project']).name}")[:96],
+                    pids=pids,
+                )
         if auto_dash and auto_dash.get("url") and isinstance(res, dict):
             res["dashboard_url"] = auto_dash["url"]
         return res
@@ -644,7 +754,14 @@ def handle_tool_call(name, arguments, *, _runner=_run_script):
             except subprocess.TimeoutExpired:
                 return {"ok": False, "timed_out": True, "outcome": "unknown",
                         "error": "Browser scenario timed out; its outcome is unknown. Inspect the owned session state and worker.log before retrying a mutation."}
-        return _runner(script, cli)
+        res = _runner(script, cli)
+        if _runner is _run_script and args["action"] == "stop":
+            _unregister_session(session_dir=args["session"])
+            try:
+                _reconcile_sessions(Path(tempfile.gettempdir()) / "stealth-commander", force=True)
+            except Exception:
+                pass
+        return res
     if name == "observer_action":
         return _runner("desktop_watch.py", [args["action"], "--watch", args["watch"]])
     if name == "start_observer":
@@ -760,13 +877,13 @@ th{color:#8b9bb4;font-size:11px;text-transform:uppercase}
     </table>
   </div>
   <div class="panel">
-    <h3><span>Install an approved private build</span><button class="sec" onclick="copyText(document.getElementById('privateInstallCmd').textContent,'Copied private package install commands!')">Copy Package Commands</button></h3>
-    <p>Builds and remote accounts are currently private. Obtain reviewed source or an approved .tgz from the operator; there is no public package registry or download here. Use Windows x64, Node.js 18+ with npm, and 64-bit Python 3.11+. PyCharm and Chrome are separate prerequisites for their workflows.</p>
-    <p>In PowerShell, from the folder containing the approved package, use its actual filename:</p>
-    <pre id="privateInstallCmd">npm install --global ./stealth-commander-1.1.3-private.6.tgz
+    <h3><span>Install the Windows preview</span><button class="sec" onclick="copyText(document.getElementById('privateInstallCmd').textContent,'Copied package install commands!')">Copy Package Commands</button></h3>
+    <p>Download the Windows preview from the <a href="https://stealthcommander.pages.dev/about#setup-title">setup guide</a>. Use Windows x64, Node.js 18+ with npm, and 64-bit Python 3.11+. PyCharm and Chrome are separate prerequisites for their workflows. There is no npm registry release.</p>
+    <p>To install the downloaded npm archive globally, open PowerShell in the folder containing it and use its actual filename:</p>
+    <pre id="privateInstallCmd">npm install --global ./stealth-commander.tgz
 stealth-commander install
 stealth-commander doctor</pre>
-    <p>Alternatively, extract the approved source archive and run these commands from its directory containing package.json:</p>
+    <p>Alternatively, extract the Windows ZIP and run these commands from the folder containing package.json:</p>
     <pre>node ./bin/stealth-commander.js install
 node ./bin/stealth-commander.js doctor</pre>
     <p>Installation downloads pinned Python dependencies from PyPI, updates supported existing local client configurations, and starts no services. It needs no account. Read doctor's individual readiness results. The commands below use the globally installed package; from extracted source, replace stealth-commander with node ./bin/stealth-commander.js.</p>
@@ -784,7 +901,7 @@ node ./bin/stealth-commander.js doctor</pre>
   <div class="grid">
     <div class="panel">
       <h3><span>Local client configuration</span></h3>
-      <p style="margin:0;font-size:12px;color:#8b9bb4">After installing the approved .tgz globally, open a configuration link for Cursor or VS Code. The source installer updates supported existing local client configurations directly. Remote account access requires an approved account and a paired PC.</p>
+      <p style="margin:0;font-size:12px;color:#8b9bb4">After installing the downloaded .tgz globally, open a configuration link for Cursor or VS Code. The source installer updates supported existing local client configurations directly. Remote account access requires an account and a paired PC.</p>
       <div class="row">
         <a class="btn" id="cursorLink" href="#">Open in Cursor</a>
         <a class="btn sec" id="vscodeLink" href="#">Open in VS Code</a>
@@ -794,7 +911,7 @@ node ./bin/stealth-commander.js doctor</pre>
       <code class="blk" id="mcpUrlCode"></code>
     </div>
     <div class="panel">
-      <h3><span>Local stdio MCP JSON (installed private package)</span><button class="sec" onclick="copyText(document.getElementById('jsonSnippet').textContent,'Copied JSON config!')">Copy JSON</button></h3>
+      <h3><span>Local stdio MCP JSON (installed Windows client)</span><button class="sec" onclick="copyText(document.getElementById('jsonSnippet').textContent,'Copied JSON config!')">Copy JSON</button></h3>
       <pre id="jsonSnippet">{
   "mcpServers": {
     "stealth-commander": {
@@ -804,7 +921,7 @@ node ./bin/stealth-commander.js doctor</pre>
   }
 }</pre>
       <p>These Windows examples use cmd to run npm's installed command shim. The source installer writes configurations with the exact Python executable instead.</p>
-      <h3><span>Claude Code CLI (installed private package)</span><button class="sec" onclick="copyText('claude mcp add stealth-commander -- cmd /d /c stealth-commander serve','Copied Claude CLI command!')">Copy CLI</button></h3>
+      <h3><span>Claude Code CLI (installed Windows client)</span><button class="sec" onclick="copyText('claude mcp add stealth-commander -- cmd /d /c stealth-commander serve','Copied Claude CLI command!')">Copy CLI</button></h3>
       <code class="blk">claude mcp add stealth-commander -- cmd /d /c stealth-commander serve</code>
     </div>
   </div>
@@ -873,7 +990,7 @@ node ./bin/stealth-commander.js doctor</pre>
   <div id="acctSignedOutPanel" class="grid">
     <div class="panel">
       <h3><span>Sign In or Create Your Stealth Commander Account</span></h3>
-      <p style="margin:0;font-size:12px;color:#9fb0c7">Sign in with an approved account to link your Windows PCs. Account creation during private testing requires operator approval. Select a paired PC for remote access.</p>
+      <p style="margin:0;font-size:12px;color:#9fb0c7">Create an account or sign in to link your Windows PCs. Select a paired PC for remote access.</p>
       <div class="row" style="margin-top:4px">
         <button id="modeSignInBtn" onclick="setAuthMode('login')">Sign In</button>
         <button class="sec" id="modeRegBtn" onclick="setAuthMode('register')">Create Account</button>
@@ -881,7 +998,7 @@ node ./bin/stealth-commander.js doctor</pre>
       </div>
       <div id="authEmailFields" style="display:flex;flex-direction:column;gap:8px;margin-top:4px">
         <input id="acctEmailIn" type="email" placeholder="Email address (e.g. you@example.com)">
-        <input id="acctPassIn" type="password" placeholder="Password (min 6 characters)">
+        <input id="acctPassIn" type="password" placeholder="Password (min 12 characters)">
         <input id="acctNameIn" type="text" placeholder="Display Name (optional)" style="display:none">
       </div>
       <div id="authKeyFields" style="display:none;flex-direction:column;gap:8px;margin-top:4px">
@@ -937,7 +1054,7 @@ node ./bin/stealth-commander.js doctor</pre>
     </div>
     <div id="mAuthEmailFields" style="display:flex;flex-direction:column;gap:8px;margin-top:4px">
       <input id="mAcctEmailIn" type="email" placeholder="Email address (e.g. user@example.com)">
-      <input id="mAcctPassIn" type="password" placeholder="Password (min 6 characters)">
+      <input id="mAcctPassIn" type="password" placeholder="Password (min 12 characters)">
       <input id="mAcctNameIn" type="text" placeholder="Display Name (optional)" style="display:none">
     </div>
     <div id="mAuthKeyFields" style="display:none;flex-direction:column;gap:8px;margin-top:4px">
@@ -951,8 +1068,8 @@ node ./bin/stealth-commander.js doctor</pre>
 </div>
 
 <div id="setupBanner" class="panel" style="display:none;margin-bottom:10px;border-color:#388bfd;background:#0d1829">
-  <h3><span>Set up an approved Windows client</span><div class="row"><button onclick="openAuthModal()">Sign In / Create Account</button><button class="sec" onclick="copyText(document.getElementById('bannerSetupCmd').textContent,'Copied setup command!')">Copy Setup Command</button></div></h3>
-  <p style="margin:0;font-size:12px;color:#9fb0c7">Install the approved source or .tgz using the Devices tab instructions first. Pairing and remote access require an approved account key. Run this command in PowerShell; it prompts for the key without echoing it:</p>
+  <h3><span>Set up the Windows preview</span><div class="row"><button onclick="openAuthModal()">Sign In / Create Account</button><button class="sec" onclick="copyText(document.getElementById('bannerSetupCmd').textContent,'Copied setup command!')">Copy Setup Command</button></div></h3>
+  <p style="margin:0;font-size:12px;color:#9fb0c7">Install the Windows preview using the Devices tab instructions first. Pairing and remote access require your account key. Run this command in PowerShell; it prompts for the key without echoing it:</p>
   <code class="blk" id="bannerSetupCmd">stealth-commander setup --enable-remote</code>
   <div class="row">
     <input id="remotePairIn" placeholder="Or paste your personal #remote tunnel URL (https://....trycloudflare.com/<token>)">
@@ -1570,12 +1687,247 @@ def _hub_state_file():
     return base / "StealthDesktop" / "hub_state.json"
 
 
+def _sessions_state_file():
+    base = Path(os.environ.get("LOCALAPPDATA", str(Path.home() / "AppData" / "Local")))
+    return base / "StealthDesktop" / "active_sessions.json"
+
+
+def _detect_owner_ai(explicit=None):
+    if isinstance(explicit, str) and explicit.strip():
+        return explicit.strip()[:64]
+    name = (_ACTIVE_CLIENT.get("name") or "").strip()
+    if name:
+        ver = (_ACTIVE_CLIENT.get("version") or "").strip()
+        return f"{name} {ver}".strip()[:64] if ver else name[:64]
+    try:
+        import psutil
+        proc = psutil.Process(os.getpid())
+        for _ in range(5):
+            parent = proc.parent()
+            if parent is None:
+                break
+            pname = (parent.name() or "").lower()
+            cmd = " ".join(parent.cmdline() or []).lower()
+            hay = pname + " " + cmd
+            if "antigravity" in hay or "language_server" in hay or "gemini" in hay:
+                return "Antigravity / Gemini"
+            if "codex" in hay or "chatgpt" in hay:
+                return "ChatGPT / Codex"
+            if "claude" in hay:
+                return "Claude"
+            if "droid" in hay or "factory" in hay:
+                return "Factory Droid"
+            if "cursor" in hay:
+                return "Cursor"
+            if "windsurf" in hay or "codeium" in hay:
+                return "Windsurf"
+            proc = parent
+    except Exception:
+        pass
+    return "Local MCP"
+
+
+def _friendly_desktop_name(desktop):
+    if not isinstance(desktop, str) or "_" not in desktop:
+        return str(desktop or "")
+    return "Desktop " + desktop.split("_", 1)[1].replace("_", " ")[:80]
+
+
+def _load_active_sessions():
+    p = _sessions_state_file()
+    if not p.is_file():
+        return {}
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _save_active_sessions(sessions):
+    try:
+        _write_local_json(_sessions_state_file(), sessions)
+    except OSError:
+        pass
+
+
+def _register_session(*, desktop, kind, session_dir, owner_ai, task, pids=None):
+    if not desktop:
+        return
+    sessions = _load_active_sessions()
+    sessions[desktop] = {
+        "desktop": desktop,
+        "friendly_name": _friendly_desktop_name(desktop),
+        "kind": str(kind or "native"),
+        "session_dir": str(session_dir or ""),
+        "owner_ai": str(owner_ai or "Local MCP")[:64],
+        "task": str(task or kind or "Hidden Desktop")[:96],
+        "pids": [int(p) for p in (pids or []) if isinstance(p, int) and p > 0],
+        "started_at": time.time(),
+    }
+    _save_active_sessions(sessions)
+
+
+def _unregister_session(*, desktop=None, session_dir=None):
+    sessions = _load_active_sessions()
+    norm_dir = os.path.normcase(str(Path(session_dir).resolve())) if session_dir else None
+    changed = False
+    for key, rec in list(sessions.items()):
+        if desktop and key == desktop:
+            sessions.pop(key, None)
+            changed = True
+            continue
+        if norm_dir and rec.get("session_dir"):
+            try:
+                if os.path.normcase(str(Path(rec["session_dir"]).resolve())) == norm_dir:
+                    sessions.pop(key, None)
+                    changed = True
+            except OSError:
+                pass
+    if changed:
+        _save_active_sessions(sessions)
+
+
+def _reconcile_sessions(base_root, *, live_desktops=None, force=False):
+    """Terraform-style state reconciliation: prune dead sessions and leaked temp residue."""
+    reaped_sessions = 0
+    sessions = _load_active_sessions()
+    if live_desktops is None and os.name == "nt":
+        try:
+            import desktop_registry
+            reg_probe = desktop_registry.DesktopRegistry([], Path(base_root) / "discovered", interval=60)
+            live_desktops = set(reg_probe._enumerate().get("present_desktops") or [])
+        except Exception:
+            live_desktops = None
+    if live_desktops is not None and sessions:
+        changed = False
+        now = time.time()
+        for key, rec in list(sessions.items()):
+            # Give newly created sessions a 15s startup grace window before reaping.
+            age = now - float(rec.get("started_at") or 0)
+            if key not in live_desktops and (force or age > 15.0):
+                sessions.pop(key, None)
+                reaped_sessions += 1
+                changed = True
+        if changed:
+            _save_active_sessions(sessions)
+    gc_stats = {"removed_dirs": 0, "removed_probes": 0}
+    try:
+        import desktop_registry
+        disc = Path(base_root) / "discovered"
+        if disc.is_dir():
+            gc_reg = desktop_registry.DesktopRegistry([], disc, interval=60)
+            gc_stats = gc_reg.reap_residue(force=force)
+    except Exception:
+        pass
+    # Scrub legacy stale removed_ids so active desktops are never silently hidden.
+    try:
+        st = _load_hub_state()
+        if st.get("removed_ids") or "removed_Ids" in st:
+            st["removed_ids"] = []
+            st.pop("removed_Ids", None)
+            _save_hub_state(st)
+    except Exception:
+        pass
+    return {"ok": True, "reaped_sessions": reaped_sessions, **gc_stats}
+
+
+def _match_session_for_card(card, sessions):
+    name = (card.get("name") or "").strip()
+    card_pids = set()
+    for proc in ((card.get("metrics") or {}).get("processes") or []):
+        if isinstance(proc, dict) and isinstance(proc.get("pid"), int):
+            card_pids.add(proc["pid"])
+    for rec in sessions.values():
+        if name and rec.get("friendly_name") == name:
+            return rec
+        if card_pids and any(p in card_pids for p in (rec.get("pids") or [])):
+            return rec
+    return None
+
+
+def _stop_managed_session_for_card(card, obs_url, base_root):
+    sessions = _load_active_sessions()
+    rec = _match_session_for_card(card, sessions) if card else None
+    stop_res = None
+    if rec and rec.get("session_dir"):
+        kind = rec.get("kind") or "native"
+        script_map = {"native": "native_desktop.py", "browser": "rea_bridge.py", "pycharm": "harness.py"}
+        script = script_map.get(kind)
+        if script:
+            cli = ["stop", "--session", rec["session_dir"]]
+            if kind == "native":
+                cli.append("--force-owned-job")
+            try:
+                stop_res = _run_script(script, cli, timeout=30)
+            except Exception as exc:
+                stop_res = {"ok": False, "error": str(exc)}
+        _unregister_session(desktop=rec.get("desktop"), session_dir=rec.get("session_dir"))
+    # Also stop the discovered observer watch matching this card's stream URL if present.
+    observer_stopped = False
+    if obs_url:
+        disc = Path(base_root) / "discovered"
+        if disc.is_dir():
+            for wjson in disc.glob("registry-*/watch-*/watch.json"):
+                try:
+                    wdata = json.loads(wjson.read_text(encoding="utf-8"))
+                    if (wdata.get("url") or "").rstrip("/") == obs_url.rstrip("/"):
+                        _run_script("desktop_watch.py", ["stop", "--watch", str(wjson.parent)], timeout=15)
+                        shutil.rmtree(wjson.parent.parent, ignore_errors=True)
+                        observer_stopped = True
+                        break
+                except Exception:
+                    continue
+    reconciled = _reconcile_sessions(base_root, force=True)
+    return {
+        "ok": True,
+        "stopped_session": bool(rec),
+        "session_kind": rec.get("kind") if rec else None,
+        "owner_ai": rec.get("owner_ai") if rec else None,
+        "stop_result": stop_res,
+        "observer_stopped": observer_stopped,
+        "reconciled": reconciled,
+    }
+
+
+def _fetch_single_jpeg(obs_url, timeout=8.0):
+    """Fetch one bounded JPEG frame directly from an owned local observer and close immediately."""
+    parsed = urlsplit(obs_url)
+    conn = http.client.HTTPConnection("127.0.0.1", parsed.port, timeout=timeout)
+    try:
+        conn.request("GET", parsed.path.rstrip("/") + "/stream.mjpg", headers={"Host": f"127.0.0.1:{parsed.port}", "Connection": "close"})
+        resp = conn.getresponse()
+        if resp.status != 200:
+            return None
+        buf = bytearray()
+        start = -1
+        while len(buf) < 4 * 1024 * 1024:
+            chunk = resp.read1(32768)
+            if not chunk:
+                break
+            prev = len(buf)
+            buf.extend(chunk)
+            if start < 0:
+                idx = buf.find(b"\xff\xd8")
+                if idx >= 0:
+                    start = idx
+            if start >= 0:
+                idx2 = buf.find(b"\xff\xd9", max(start + 2, prev - 1))
+                if idx2 >= 0:
+                    return bytes(buf[start:idx2 + 2])
+        return None
+    except Exception:
+        return None
+    finally:
+        conn.close()
+
+
 def _load_hub_state():
     p = _hub_state_file()
     default = {
         "total_calls": 0,
         "recent_events": [],
-        "removed_Ids": [],
+        "removed_ids": [],
         "settings": {
             "target_fps": 60,
             "auto_start_dashboard": True,
@@ -1586,16 +1938,16 @@ def _load_hub_state():
     if p.is_file():
         try:
             data = json.loads(p.read_text(encoding="utf-8"))
-            default.update(data)
+            if isinstance(data, dict):
+                data.pop("removed_Ids", None)
+                default.update(data)
         except Exception:
             pass
     return default
 
 
 def _save_hub_state(state):
-    p = _hub_state_file()
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+    _write_local_json(_hub_state_file(), state)
 
 
 def _record_usage_event(tool_name, ok=True, duration_ms=0, summary=""):
@@ -1877,7 +2229,7 @@ def _make_remote_hub_handler(token, base_root):
                     except Exception:
                         pass
                 hub_state = _load_hub_state()
-                removed_ids = set(hub_state.get("removed_ids") or [])
+                active_sessions = _load_active_sessions()
                 tunnel_ok = bool(pub_origin and _saved_tunnel_running(tdata))
                 devices = [{
                     "id": "host-pc",
@@ -1890,30 +2242,40 @@ def _make_remote_hub_handler(token, base_root):
                 }]
                 filtered_desktops = []
                 for card in meta.get("desktops") or []:
-                    if card.get("id") in removed_ids:
-                        continue
                     raw_url = card.pop("url", None)
                     if raw_url and card.get("id"):
                         with stream_lock:
                             stream_map[card["id"]] = raw_url
                         card["stream_path"] = f"{prefix}/stream/{card['id']}.mjpg"
+                        card["frame_path"] = f"{prefix}/frame/{card['id']}.jpg"
                         card["local_stream_url"] = raw_url.rstrip("/") + "/stream.mjpg"
                         if pub_origin:
                             card["tunnel_stream_url"] = f"{pub_origin}{prefix}/stream/{card['id']}.mjpg"
+                    sess = _match_session_for_card(card, active_sessions)
+                    win_titles = [w.get("title") for w in (card.get("windows") or []) if isinstance(w, dict) and w.get("title")]
+                    card["owner_ai"] = (sess or {}).get("owner_ai") or "Local / External"
+                    card["task"] = (sess or {}).get("task") or (win_titles[0][:80] if win_titles else card.get("name", "Hidden Desktop"))
+                    card["session_kind"] = (sess or {}).get("kind") or "desktop"
+                    card["managed"] = bool(sess)
+                    if sess and sess.get("started_at"):
+                        card["started_at"] = sess["started_at"]
                     filtered_desktops.append(card)
                     m = card.get("metrics") or {}
                     cpu_s = f"{m.get('cpu_percent', 0):.1f}% CPU" if isinstance(m.get("cpu_percent"), (int, float)) else "0% CPU"
                     ram_s = f"{round(m.get('rss_bytes', 0) / 1048576)} MB" if isinstance(m.get("rss_bytes"), (int, float)) else "—"
                     fps_s = f"{round(m.get('capture_fps', 60))} FPS" if isinstance(m.get("capture_fps"), (int, float)) else "60 FPS"
-                    is_live = card.get("state") == "live"
+                    state_val = card.get("state") or "unavailable"
+                    is_live = state_val in ("live", "stale")
                     devices.append({
                         "id": card.get("id", "desk"),
                         "name": card.get("name", "Hidden Desktop"),
                         "kind": "desktop",
+                        "owner_ai": card["owner_ai"],
+                        "task": card["task"],
                         "online": is_live,
                         "needs_reconnect": not is_live,
-                        "status_text": "ONLINE · 60 FPS" if is_live else "NEEDS RECONNECT",
-                        "telemetry": f"{cpu_s} · {ram_s} · {fps_s} · {len(card.get('windows') or [])} win",
+                        "status_text": "LIVE" if state_val == "live" else ("IDLE / STALE" if state_val == "stale" else "UNAVAILABLE"),
+                        "telemetry": f"{card['owner_ai']} · {cpu_s} · {ram_s} · {fps_s} · {len(card.get('windows') or [])} win",
                     })
                 meta["desktops"] = filtered_desktops
                 meta["device"] = {
@@ -1941,6 +2303,33 @@ def _make_remote_hub_handler(token, base_root):
             if sub == "/mcp":
                 self._send_json(200, {"ok": True, "serverInfo": SERVER_INFO, "tools": [t["name"] for t in TOOLS]})
                 return
+            if sub.startswith("/frame/") and sub.endswith(".jpg"):
+                desktop_id = sub[len("/frame/"):-len(".jpg")]
+                with stream_lock:
+                    obs_url = stream_map.get(desktop_id)
+                if not obs_url:
+                    dash = ensure_dashboard(str(base_root))
+                    for card in (dash.get("meta") or {}).get("desktops") or []:
+                        if card.get("id") == desktop_id and card.get("url"):
+                            obs_url = card["url"]
+                            with stream_lock:
+                                stream_map[desktop_id] = obs_url
+                            break
+                if not obs_url:
+                    self._send_json(404, {"error": "frame unavailable"})
+                    return
+                jpeg = _fetch_single_jpeg(obs_url, timeout=8.0)
+                if not jpeg:
+                    self._send_json(502, {"error": "upstream frame error"})
+                    return
+                self.close_connection = True
+                self.send_response(200)
+                self.send_header("Content-Type", "image/jpeg")
+                self.send_header("Content-Length", str(len(jpeg)))
+                self._send_security_headers()
+                self.end_headers()
+                self.wfile.write(jpeg)
+                return
             if sub.startswith("/stream/") and sub.endswith(".mjpg"):
                 desktop_id = sub[len("/stream/"):-len(".mjpg")]
                 with stream_lock:
@@ -1957,7 +2346,8 @@ def _make_remote_hub_handler(token, base_root):
                     self._send_json(404, {"error": "stream unavailable"})
                     return
                 parsed = urlsplit(obs_url)
-                conn = http.client.HTTPConnection("127.0.0.1", parsed.port, timeout=10 if self._is_loopback() else 1)
+                remote = not self._is_loopback()
+                conn = http.client.HTTPConnection("127.0.0.1", parsed.port, timeout=10)
                 try:
                     conn.request("GET", parsed.path.rstrip("/") + "/stream.mjpg", headers={"Host": f"127.0.0.1:{parsed.port}"})
                     resp = conn.getresponse()
@@ -1968,16 +2358,17 @@ def _make_remote_hub_handler(token, base_root):
                     self.send_header("Content-Type", resp.getheader("Content-Type", "multipart/x-mixed-replace; boundary=frame"))
                     self._send_security_headers()
                     self.end_headers()
-                    remote_deadline = time.monotonic() + 1.0 if not self._is_loopback() else None
+                    next_check = 0.0
                     while True:
-                        if remote_deadline is not None:
-                            if time.monotonic() >= remote_deadline:
-                                break
-                            current = json.loads(_tunnel_config_file().read_text(encoding="utf-8"))
-                            if (current.get("remote_access_enabled") is not True
-                                    or current.get("retired_remote_token") == token or not _load_account_config()):
-                                break
-                        chunk = resp.read1(16384) if remote_deadline is not None else resp.read(16384)
+                        if remote:
+                            now = time.monotonic()
+                            if now >= next_check:
+                                current = json.loads(_tunnel_config_file().read_text(encoding="utf-8"))
+                                if (current.get("remote_access_enabled") is not True
+                                        or current.get("retired_remote_token") == token or not _load_account_config()):
+                                    break
+                                next_check = now + 0.5
+                        chunk = resp.read1(16384)
                         if not chunk:
                             break
                         self.wfile.write(chunk)
@@ -2031,6 +2422,10 @@ def _make_remote_hub_handler(token, base_root):
                 self._send_json(200, _capture_result(_read_observability_frame(body)))
                 return
             if sub == "/mcp":
+                versions = self.headers.get_all("MCP-Protocol-Version", [])
+                if len(versions) > 1 or versions and versions[0] not in MCP_PROTOCOL_VERSIONS:
+                    self._send_json(400, {"error": "Unsupported MCP protocol version."})
+                    return
                 if isinstance(body, list):
                     out = [r for m in body if (r := handle_rpc(m)) is not None]
                     self._send_json(200, out)
@@ -2051,20 +2446,22 @@ def _make_remote_hub_handler(token, base_root):
                 work = base_root / "remote-sessions"
                 work.mkdir(parents=True, exist_ok=True)
                 if kind == "launch_chrome":
-                    res = handle_tool_call("start_browser", _browser_launch_arguments(work, body))
+                    launch_args = _browser_launch_arguments(work, body)
+                    launch_args.update(owner_ai="Web Portal", task="Chrome Hidden Desktop")
+                    res = handle_tool_call("start_browser", launch_args)
                 elif kind == "launch_notepad":
                     sess = work / f"native-{ int(time.time()) }"
-                    res = handle_tool_call("start_native_app", {"session": str(sess), "executable": r"C:\Windows\System32\notepad.exe", "work_dir": str(work)})
+                    res = handle_tool_call("start_native_app", {"session": str(sess), "executable": r"C:\Windows\System32\notepad.exe", "work_dir": str(work), "owner_ai": "Web Portal", "task": "Notepad"})
                 elif kind == "launch_app":
                     exe = body.get("target") or r"C:\Windows\System32\notepad.exe"
                     sess = work / f"native-{ int(time.time()) }"
-                    res = handle_tool_call("start_native_app", {"session": str(sess), "executable": exe, "work_dir": str(work)})
+                    res = handle_tool_call("start_native_app", {"session": str(sess), "executable": exe, "work_dir": str(work), "owner_ai": "Web Portal", "task": Path(exe).stem})
                 elif kind == "launch_pycharm":
                     proj = body.get("target")
                     if not proj:
                         self._send_json(400, {"ok": False, "error": "Enter a project path first."})
                         return
-                    res = handle_tool_call("start_pycharm", {"project": proj, "work_dir": str(work)})
+                    res = handle_tool_call("start_pycharm", {"project": proj, "work_dir": str(work), "owner_ai": "Web Portal", "task": f"PyCharm: {Path(proj).name}"})
                 elif kind == "run_cmd":
                     cmd_str = body.get("cmd") or ""
                     if not cmd_str:
@@ -2076,23 +2473,26 @@ def _make_remote_hub_handler(token, base_root):
                 elif kind in ("reconnect_tunnel", "reconnect_device"):
                     dev_id = body.get("device_id") or "host-pc"
                     st = _load_hub_state()
-                    removed = [x for x in (st.get("removed_ids") or []) if x != dev_id]
-                    st["removed_ids"] = removed
+                    st["removed_ids"] = []
                     _save_hub_state(st)
                     res = ensure_remote_hub()
                 elif kind == "stop_tunnel":
                     res = stop_remote_tunnel()
                 elif kind == "restart_dashboard":
                     res = ensure_dashboard(str(base_root))
+                elif kind == "reclaim_residue":
+                    res = _reconcile_sessions(base_root, force=True)
                 elif kind == "remove_device":
                     dev_id = body.get("device_id") or ""
-                    st = _load_hub_state()
-                    removed = list(st.get("removed_ids") or [])
-                    if dev_id and dev_id not in removed and dev_id != "host-pc":
-                        removed.append(dev_id)
-                    st["removed_ids"] = removed
-                    _save_hub_state(st)
-                    res = {"ok": True, "removed": dev_id}
+                    if not dev_id or dev_id == "host-pc":
+                        res = {"ok": False, "error": "Cannot remove host-pc."}
+                    else:
+                        dash_now = ensure_dashboard(str(base_root))
+                        target_card = next((c for c in ((dash_now.get("meta") or {}).get("desktops") or []) if c.get("id") == dev_id), None)
+                        with stream_lock:
+                            obs_url = stream_map.pop(dev_id, None) or (target_card.get("url") if target_card else None)
+                        res = _stop_managed_session_for_card(target_card, obs_url, base_root)
+                        res["removed"] = dev_id
                 elif kind == "save_settings":
                     st = _load_hub_state()
                     st.setdefault("settings", {}).update(body.get("settings") or {})
@@ -2397,10 +2797,15 @@ def ensure_remote_hub(*, enable_tunnel=True):
         "retired_remote_token": saved.get("retired_remote_token"),
     }
     _write_tunnel_config(info)
-    try:
-        sync_device_to_account(info)
-    except Exception:
-        pass
+    if account:
+        try:
+            synced = sync_device_to_account(info)
+        except Exception:
+            synced = None
+        if not isinstance(synced, dict) or synced.get("ok") is not True:
+            retry = "setup --enable-remote" if enable_tunnel else "setup"
+            return {"ok": False, "account_sync_failed": True, "retry_command": retry,
+                    "error": "This PC's account connection could not be confirmed. Local services and any existing tunnel were preserved. Check your connection and pairing, then retry " + retry + "."}
     return {"ok": True, **info, "started": not hub_running}
 
 
@@ -2458,8 +2863,13 @@ def handle_rpc(msg, *, _runner=_run_script):
     if msg.get("params") is not None and not isinstance(msg["params"], dict):
         return {"jsonrpc": "2.0", "id": msg_id, "error": {"code": -32602, "message": "Invalid params"}}
     if method == "initialize":
-        req_ver = (msg.get("params") or {}).get("protocolVersion")
-        proto = req_ver if req_ver in ("2024-11-05", "2025-03-26", "2025-06-18") else "2024-11-05"
+        params = msg.get("params") or {}
+        cinfo = params.get("clientInfo") if isinstance(params.get("clientInfo"), dict) else {}
+        if cinfo.get("name"):
+            _ACTIVE_CLIENT["name"] = str(cinfo.get("name"))[:48]
+            _ACTIVE_CLIENT["version"] = str(cinfo.get("version") or "")[:24]
+        req_ver = params.get("protocolVersion")
+        proto = req_ver if req_ver in MCP_PROTOCOL_VERSIONS else MCP_PROTOCOL_VERSIONS[-1]
         return {
             "jsonrpc": "2.0",
             "id": msg_id,
@@ -2475,12 +2885,19 @@ def handle_rpc(msg, *, _runner=_run_script):
         params = msg.get("params") or {}
         if not isinstance(params.get("arguments", {}), dict):
             return {"jsonrpc": "2.0", "id": msg_id, "error": {"code": -32602, "message": "Invalid tool arguments"}}
+        t0 = time.monotonic()
+        tool_name = params.get("name", "")
+        tool_args = params.get("arguments") or {}
         try:
-            payload = handle_tool_call(params.get("name", ""), params.get("arguments") or {}, _runner=_runner)
+            payload = handle_tool_call(tool_name, tool_args, _runner=_runner)
             is_error = not bool(payload.get("ok", True))
         except Exception as exc:
             payload = {"ok": False, "error": str(exc)}
             is_error = True
+        if _runner is _run_script and tool_name:
+            owner = _detect_owner_ai(tool_args.get("owner_ai"))
+            summary = str(tool_args.get("task") or tool_args.get("action") or (Path(tool_args["executable"]).name if isinstance(tool_args.get("executable"), str) else "") or "")[:80]
+            _record_usage_event(f"{owner}: {tool_name}", not is_error, round((time.monotonic() - t0) * 1000), summary)
         result = _capture_result(payload) if params.get("name") == "capture_observation" else {
             "content": [{"type": "text", "text": json.dumps(payload, indent=2)}], "isError": is_error,
         }
@@ -2489,8 +2906,10 @@ def handle_rpc(msg, *, _runner=_run_script):
             "id": msg_id,
             "result": result,
         }
-    if msg_id is not None:
-        return {"jsonrpc": "2.0", "id": msg_id, "result": {}}
+    if "id" in msg:
+        if method == "ping":
+            return {"jsonrpc": "2.0", "id": msg_id, "result": {}}
+        return {"jsonrpc": "2.0", "id": msg_id, "error": {"code": -32601, "message": "Method not found"}}
     return None
 
 
@@ -2546,8 +2965,6 @@ def setup_environment(cli_opts=None):
             hub = ensure_remote_hub(enable_tunnel=True)
             if not hub.get("ok"):
                 return hub
-    else:
-        sync_device_to_account(hub)
     if enable_remote and (acct_res is None or acct_res.get("ok")) and hub.get("remote_access_enabled") is not True:
         return {"ok": False, "remote_access_enabled": False, "error": "The PC is paired, but its remote tunnel is not ready. Check the connection and retry setup --enable-remote."}
     acct_cfg = _load_account_config()
@@ -2623,7 +3040,7 @@ def main():
         if cmd == "doctor":
             return _print_cli_result(handle_tool_call("doctor", {}))
         if cmd in ("-h", "--help", "help"):
-            print("Usage: stealth-commander [install [--skip-dependencies]|setup [--enable-remote]|login|register|whoami|logout|start|tunnel|doctor|serve]\nFrom extracted approved source, replace stealth-commander with node ./bin/stealth-commander.js.\nCurrent builds and remote account access are private; obtain the approved source or .tgz from the operator.\ninstall updates local skills and client configurations without starting services or requiring an account.\nlogin and unpaired setup prompt for the approved account key in an interactive terminal without echoing it.\nsetup starts local services. --enable-remote also creates a token-protected HTTPS tunnel.\nThe tunnel command explicitly enables remote access. Remote tools can execute commands with your Windows account permissions.")
+            print("Usage: stealth-commander [install [--skip-dependencies]|setup [--enable-remote]|login|register|whoami|logout|start|tunnel|doctor|serve]\nFrom the extracted Windows ZIP, replace stealth-commander with node ./bin/stealth-commander.js.\nDownload the Windows preview at https://stealthcommander.pages.dev/about#setup-title. There is no npm registry release.\ninstall updates local skills and client configurations without starting services or requiring an account.\nlogin and unpaired setup prompt for your account key in an interactive terminal without echoing it.\nsetup starts local services. --enable-remote also creates a token-protected HTTPS tunnel.\nThe tunnel command explicitly enables remote access. Remote tools can execute commands with your Windows account permissions.")
             return
     for raw in sys.stdin:
         line = raw.strip()

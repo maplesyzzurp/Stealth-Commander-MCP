@@ -253,8 +253,9 @@ async function deviceControl(request, env, signedIn) {
   try { body = JSON.parse(await readLimitedText(request, 1024 * 1024)); }
   catch (error) { return json(error instanceof RangeError ? 413 : 400, 'Valid bounded JSON is required.'); }
   if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).some(key => !['device_id', 'path', 'method', 'payload'].includes(key)) || typeof body.device_id !== 'string') return json(400, 'Choose a paired PC.');
+  const singleFrame = body.method === 'GET' && typeof body.path === 'string' && /^\/frame\/[A-Za-z0-9_.-]{1,128}\.jpg$/.test(body.path);
   const snapshot = body.method === 'GET' && typeof body.path === 'string' && /^\/stream\/[A-Za-z0-9_.-]{1,128}\.mjpg$/.test(body.path);
-  if (!(body.method === 'GET' && body.path === '/meta' || body.method === 'POST' && body.path === '/action' || snapshot)) return json(400, 'Control route is not allowed.');
+  if (!(body.method === 'GET' && body.path === '/meta' || body.method === 'POST' && body.path === '/action' || singleFrame || snapshot)) return json(400, 'Control route is not allowed.');
   if (body.method === 'GET' && body.payload !== undefined || body.method === 'POST' && (!body.payload || typeof body.payload !== 'object' || Array.isArray(body.payload))) return json(400, 'Invalid control payload.');
   if (publishes(body.payload)) return json(403, 'Publishing is disabled in private mode.');
   const pc = device(signedIn.user, body.device_id);
@@ -265,8 +266,14 @@ async function deviceControl(request, env, signedIn) {
     const outgoing = body.method === 'POST' ? JSON.stringify(body.payload) : undefined;
     const ticket = await issuePcTicket(env.STEALTH_AUTH, signedIn.user, pc, body.method, body.path, outgoing, ['session:' + signedIn.session]);
     if (!ticket) return json(401, 'PC request authorization ended.');
-    const response = await fetch(pc.mcp_url.slice(0, -4) + body.path, { method: body.method, headers: { Accept: snapshot ? 'multipart/x-mixed-replace' : 'application/json', 'Content-Type': 'application/json', 'X-Stealth-PC-Authorization': ticket }, ...(outgoing === undefined ? {} : { body: outgoing }), redirect: 'manual', signal: controller.signal });
+    const response = await fetch(pc.mcp_url.slice(0, -4) + body.path, { method: body.method, headers: { Accept: singleFrame ? 'image/jpeg' : (snapshot ? 'multipart/x-mixed-replace' : 'application/json'), 'Content-Type': 'application/json', 'X-Stealth-PC-Authorization': ticket }, ...(outgoing === undefined ? {} : { body: outgoing }), redirect: 'manual', signal: controller.signal });
     if (response.status >= 300 && response.status < 400) return json(502, 'PC connection redirected.');
+    if (singleFrame) {
+      if (!response.ok || !(response.headers.get('Content-Type') || '').toLowerCase().startsWith('image/jpeg')) return json(502, 'PC screen frame is unavailable.');
+      const buf = new Uint8Array(await response.arrayBuffer());
+      if (buf.length < 4 || buf.length > 4 * 1024 * 1024 || buf[0] !== 255 || buf[1] !== 216) return json(502, 'PC screen frame is invalid.');
+      return new Response(buf, { headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
+    }
     if (snapshot) {
       if (!response.ok || !response.body) return json(502, 'PC screen is unavailable.');
       const reader = response.body.getReader();

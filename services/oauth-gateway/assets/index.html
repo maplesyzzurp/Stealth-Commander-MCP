@@ -130,6 +130,18 @@ Use OAuth and explicitly select a paired PC. The Windows client must be installe
 
 <section id="view-live" class="view">
   <h1 class="section-title">Your hidden desktops.</h1>
+  <div class="panel" id="liveStatusBar" style="margin-bottom:14px;padding:14px 18px">
+    <div class="row" style="justify-content:space-between;width:100%">
+      <div class="row">
+        <span class="pill" id="liveConnPill">CHECKING PC</span>
+        <span id="liveStatusText" style="font-size:13px;color:#cbbbd9">Connecting to paired Windows PC...</span>
+      </div>
+      <div class="row">
+        <button class="sec" onclick="poll()">Refresh Now</button>
+        <button class="sec" onclick="act('reclaim_residue')" title="Prune dead sessions, stopped observers, and temp files">Reclaim Residue</button>
+      </div>
+    </div>
+  </div>
   <div class="grid" style="margin-bottom:10px">
     <div class="panel">
       <h3>Quick Launch Hidden Desktop</h3>
@@ -150,7 +162,17 @@ Use OAuth and explicitly select a paired PC. The Windows client must be installe
     </div>
   </div>
   <pre id="out" style="display:none;margin-bottom:10px;max-height:150px"></pre>
+  <div class="panel" id="liveEmptyState" style="display:none;margin-bottom:12px">
+    <p id="liveEmptyMsg" style="margin:0;color:#b6a6c4">No active hidden desktops detected yet. Launch one above or start a task from Antigravity, Codex/GPT, Claude, or Droid — it will appear here automatically.</p>
+  </div>
   <div class="grid" id="grid"></div>
+  <div id="zoomModal" style="display:none;position:fixed;inset:0;background:#07040be8;z-index:120;padding:24px;align-items:center;justify-content:center;flex-direction:column;gap:12px" onclick="if(event.target===this)this.style.display='none'">
+    <div class="row" style="width:100%;max-width:1360px;justify-content:space-between">
+      <strong id="zoomTitle" style="color:#f5ebff">Hidden Desktop</strong>
+      <button class="sec" onclick="document.getElementById('zoomModal').style.display='none'">Close (Esc)</button>
+    </div>
+    <img id="zoomImg" alt="Expanded hidden desktop view" style="max-width:100%;max-height:82vh;border:1px solid #483054;border-radius:8px;background:#050308;object-fit:contain">
+  </div>
 </section>
 
 <section id="view-usage" class="view">
@@ -695,12 +717,46 @@ async function saveSettings(){
   }});
 }
 
+async function refreshCardFrame(d,c,epoch){
+  if(c.streaming||!/^[A-Za-z0-9_-]{1,128}$/.test(d.id))return;
+  c.streaming=true;
+  try{
+    let frame;
+    try{
+      frame=await pcRequest('/frame/'+d.id+'.jpg');
+    }catch(_err){
+      frame=await pcRequest('/stream/'+d.id+'.mjpg');
+    }
+    const blob=await frame.blob();
+    if(epoch===accountEpoch&&cards.get(d.id)===c){
+      const nextUrl=URL.createObjectURL(blob);
+      const prevUrl=c.objectUrl;
+      c.objectUrl=nextUrl;
+      c.img.src=nextUrl;
+      c.img.style.opacity='1';
+      if(prevUrl)setTimeout(()=>URL.revokeObjectURL(prevUrl),1500);
+      const zm=document.getElementById('zoomModal');
+      if(zm&&zm.style.display==='flex'&&zm.dataset.desktopId===d.id){
+        document.getElementById('zoomImg').src=nextUrl;
+      }
+    }
+  }catch(_){}
+  finally{c.streaming=false;}
+}
+
 async function poll(){
   if(polling)return;
+  const connPill=document.getElementById('liveConnPill');
+  const statusTxt=document.getElementById('liveStatusText');
+  const emptyBox=document.getElementById('liveEmptyState');
+  const emptyMsg=document.getElementById('liveEmptyMsg');
   if(!currentAccount||!selectedDeviceId){
     document.getElementById('setupBanner').style.display='flex';
     document.getElementById('tstatus').textContent=currentAccount?'CHOOSE YOUR PC':'SIGN IN REQUIRED';
-    document.getElementById('tstatus').className='pill warn';dashboardTelemetry=null;publishDashboardState();return;
+    document.getElementById('tstatus').className='pill warn';
+    if(connPill){connPill.textContent=currentAccount?'NO PC SELECTED':'SIGNED OUT';connPill.className='pill warn';}
+    if(statusTxt)statusTxt.textContent=currentAccount?'Select a paired Windows PC from the header or Account tab.':'Sign in to view active hidden desktops on your Windows PC.';
+    dashboardTelemetry=null;publishDashboardState();return;
   }
   polling=true;
   const epoch=accountEpoch;
@@ -724,9 +780,16 @@ async function poll(){
     }
 
     const list=j.desktops||[];
-    const liveCount=list.filter(d=>d.state==='live').length;
+    const activeCount=list.filter(d=>d.state==='live'||d.state==='stale').length;
+    const liveCount=list.length;
     document.getElementById('dcount').textContent=liveCount;
-    document.getElementById('k-desk').textContent=liveCount+' live';
+    document.getElementById('k-desk').textContent=liveCount+' active';
+    if(connPill){connPill.textContent='PC ONLINE · '+liveCount+' RUNNING';connPill.className='pill ok';}
+    if(statusTxt)statusTxt.textContent=`Connected to ${dev.hostname||'Windows PC'} · ${activeCount} streaming / ${liveCount} total · Updated ${new Date().toLocaleTimeString()}`;
+    if(emptyBox){
+      emptyBox.style.display=list.length?'none':'flex';
+      if(emptyMsg)emptyMsg.textContent=`Connected to ${dev.hostname||'Windows PC'} — 0 hidden desktops currently running. Launch one above or run a task from Antigravity, Codex/GPT, Claude, or Droid and it will appear here automatically.`;
+    }
 
     const clients=j.clients||[];
     const connCount=clients.filter(c=>c.connected).length;
@@ -741,13 +804,13 @@ async function poll(){
 
     const devs=j.devices||[];
     document.getElementById('devTable').innerHTML=devs.map(d=>`<tr>
-      <td><strong>${escapeHtml(d.name)}</strong></td>
-      <td>${d.kind==='host'?'Windows Host PC':'Hidden Desktop'}</td>
+      <td><strong>${escapeHtml(d.name)}</strong>${d.task&&d.kind!=='host'?`<div style="font-size:11px;color:#c9b4d9">${escapeHtml(d.task)}</div>`:''}</td>
+      <td>${d.kind==='host'?'Windows Host PC':escapeHtml(d.owner_ai||'Hidden Desktop')}</td>
       <td><span class="pill ${d.online&&!d.needs_reconnect?'ok':'warn'}">${escapeHtml(d.status_text||(d.online?'ONLINE':'NEEDS RECONNECT'))}</span></td>
       <td style="color:#aca1bd;font-size:11px">${escapeHtml(d.telemetry||d.endpoint||'—')}</td>
       <td class="row">
         <button class="sec" onclick="act('reconnect_device',{device_id:${jsArg(d.id)}})">Reconnect</button>
-        ${d.kind==='host'?`<button class="sec" onclick="act('doctor')">Ping / Doctor</button>`:`<button class="sec" onclick="showTab('live',document.querySelectorAll('.tab')[2])">Live View</button><button class="danger" onclick="act('remove_device',{device_id:${jsArg(d.id)}})">Remove</button>`}
+        ${d.kind==='host'?`<button class="sec" onclick="act('doctor')">Ping / Doctor</button>`:`<button class="sec" onclick="showTab('live',document.querySelector('[data-tab=live]'))">Live View</button><button class="danger" onclick="act('remove_device',{device_id:${jsArg(d.id)}})">Stop & Clean Up</button>`}
       </td>
     </tr>`).join('');
 
@@ -764,46 +827,75 @@ async function poll(){
     </tr>`).join(''):'<tr><td colspan="5" style="color:#aca1bd">No recent tool calls recorded yet.</td></tr>';
 
     const seen=new Set();
+    const frameTasks=[];
     for(const d of list){
       seen.add(d.id);
       let c=cards.get(d.id);
       if(!c){
         const node=document.createElement('article');node.className='card';
         const hd=document.createElement('div');hd.className='card-hd';
-        const title=document.createElement('span');
+        const left=document.createElement('div');left.style.cssText='display:flex;flex-direction:column;gap:4px;min-width:0';
+        const titleRow=document.createElement('div');titleRow.style.cssText='display:flex;align-items:center;gap:8px;flex-wrap:wrap';
+        const owner=document.createElement('span');owner.className='pill ok';
+        const title=document.createElement('span');title.style.cssText='font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:260px';
+        const sub=document.createElement('div');sub.style.cssText='font:11px/1.35 var(--mono);color:#9f8bb1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+        titleRow.append(owner,title);
+        left.append(titleRow,sub);
         const st=document.createElement('span');st.className='pill ok';
-        hd.append(title,st);
+        hd.append(left,st);
         const img=document.createElement('img');
+        img.alt='Live hidden desktop preview';
+        img.style.cursor='zoom-in';
+        img.title='Click to expand fullscreen';
+        const winBar=document.createElement('div');winBar.style.cssText='padding:8px 13px 0;font:11px/1.4 var(--mono);color:#c7b7d8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
         const meta=document.createElement('div');meta.className='meta';
-        node.append(hd,img,meta);grid.appendChild(node);
-        c={node,title,st,img,meta,streaming:false};
+        node.append(hd,img,winBar,meta);grid.appendChild(node);
+        c={node,owner,title,sub,st,img,winBar,meta,streaming:false};
+        img.onclick=()=>{
+          if(!c.objectUrl)return;
+          const zm=document.getElementById('zoomModal');
+          zm.dataset.desktopId=d.id;
+          document.getElementById('zoomTitle').textContent=`${c.owner.textContent} · ${c.title.textContent}`;
+          document.getElementById('zoomImg').src=c.objectUrl;
+          zm.style.display='flex';
+        };
         img.onerror=()=>{c.streaming=false;};
         cards.set(d.id,c);
       }
-      c.title.textContent=d.name;
-      c.st.textContent=d.state;
+      c.owner.textContent=d.owner_ai||'Local';
+      c.title.textContent=d.task||d.name;
+      c.sub.textContent=d.name+(d.session_kind?' · '+d.session_kind:'');
+      c.st.textContent=d.state==='live'?'LIVE':(d.state==='stale'?'IDLE / STALE':'STARTING');
+      c.st.className='pill '+(d.state==='live'?'ok':'warn');
+      const winTitles=(d.windows||[]).map(w=>w&&w.title).filter(Boolean);
+      c.winBar.textContent=winTitles.length?'Windows: '+winTitles.join(' | '):'Windows: (hidden surface active)';
 
-      if(d.state==='live'&&!c.streaming&&/^[A-Za-z0-9_-]{1,128}$/.test(d.id)){
-        c.streaming=true;
-        try{
-          const frame=await pcRequest('/stream/'+d.id+'.mjpg');
-          const blob=await frame.blob();
-          if(epoch===accountEpoch&&cards.get(d.id)===c){
-            if(c.objectUrl)URL.revokeObjectURL(c.objectUrl);
-            c.objectUrl=URL.createObjectURL(blob);c.img.src=c.objectUrl;
-          }
-        }catch(_){}finally{c.streaming=false;}
+      if((d.state==='live'||d.state==='stale')&&!c.streaming){
+        frameTasks.push(refreshCardFrame(d,c,epoch));
       }
       const m=d.metrics||{};
       const cpu=typeof m.cpu_percent==='number'?m.cpu_percent.toFixed(1)+'% CPU':'—';
       const ram=typeof m.rss_bytes==='number'?Math.round(m.rss_bytes/1048576)+' MB RAM':'—';
-      const fps=typeof m.capture_fps==='number'?Math.round(m.capture_fps)+' FPS':'60 FPS cap';
-      c.meta.innerHTML=`<span>${escapeHtml([cpu,ram,fps,(d.windows?.length||0)+' win'].join(' · '))}</span><button class="danger" onclick="act('remove_device',{device_id:${jsArg(d.id)}})">Stop / Remove</button>`;
+      const fps=typeof m.capture_fps==='number'?Math.round(m.capture_fps)+' FPS':'Live';
+      c.meta.innerHTML=`<span>${escapeHtml([cpu,ram,fps,(d.windows?.length||0)+' win'].join(' · '))}</span><button class="danger" onclick="act('remove_device',{device_id:${jsArg(d.id)}})">Stop & Clean Up</button>`;
     }
     for(const [id,c] of cards){if(!seen.has(id)){if(c.objectUrl)URL.revokeObjectURL(c.objectUrl);c.img.src='';c.node.remove();cards.delete(id);}}
-  }catch(_){if(epoch===accountEpoch){document.getElementById('setupBanner').style.display='flex';dashboardTelemetry=null;publishDashboardState();}}
+    if(frameTasks.length)Promise.allSettled(frameTasks);
+  }catch(err){
+    if(epoch===accountEpoch){
+      document.getElementById('setupBanner').style.display='flex';
+      if(connPill){connPill.textContent='PC UNREACHABLE';connPill.className='pill warn';}
+      if(statusTxt)statusTxt.textContent='Could not reach paired Windows PC ('+(err&&err.message?err.message:'offline')+'). Verify Stealth Commander tunnel is active.';
+      if(emptyBox){
+        emptyBox.style.display='flex';
+        if(emptyMsg)emptyMsg.textContent='Paired PC is not responding right now. Start or reconnect Stealth Commander on Windows, then hit Refresh Now.';
+      }
+      dashboardTelemetry=null;publishDashboardState();
+    }
+  }
   finally{polling=false;}
 }
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){const zm=document.getElementById('zoomModal');if(zm)zm.style.display='none';}});
 window.addEventListener('beforeunload',clearPrivateState);
 window.addEventListener('blur',hideAccountKey);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')hideAccountKey();});

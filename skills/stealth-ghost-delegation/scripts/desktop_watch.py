@@ -898,7 +898,7 @@ def worker(folder):
                 drain_ready(block_oldest=False)
                 rem = next_deadline - time.monotonic()
                 if rem > 0:
-                    time.sleep(min(.003, max(.001, rem)))
+                    time.sleep(min(0.05, rem))
         for fut in pending_stage:
             staged = fut.result()
             pending_publish.append(publish_pool.submit(_publish_frame, folder, staged, cache, cache_lock))
